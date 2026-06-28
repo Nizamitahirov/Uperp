@@ -70,4 +70,27 @@ export async function checkStockLevel(material: Pick<RawMaterial, 'id' | 'name' 
   }
 }
 
+/** Hazır məhsul overstock yoxlaması (07 §7.4) — gündəlik/manual çağırılır */
+export async function checkOverstock(goods: { id: string; variantSku: string; currentStock: number; maxStock: number }[]): Promise<number> {
+  let count = 0;
+  for (const g of goods) {
+    if (g.maxStock > 0 && g.currentStock > g.maxStock) {
+      count++;
+      await createNotification({
+        type: 'OVERSTOCK',
+        severity: 'info',
+        title: { az: `${g.variantSku} overstock`, en: `${g.variantSku} overstock` },
+        message: {
+          az: `Cari: ${g.currentStock}, Maksimum: ${g.maxStock}. Endirim/kampaniya tövsiyə olunur.`,
+          en: `Current: ${g.currentStock}, Max: ${g.maxStock}. Markdown recommended.`,
+        },
+        recipientRoles: ['director', 'sales'],
+        entityType: 'FinishedGood',
+        entityId: g.id,
+      });
+    }
+  }
+  return count;
+}
+
 export type { AppNotification };

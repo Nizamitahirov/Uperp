@@ -3,7 +3,7 @@ import { getDb } from './config';
 import { nextNumber } from './counters';
 import { logAudit } from './audit';
 import { addCashTransaction } from './cash';
-import type { Payable, Receivable } from '@/types';
+import type { ExpenseCategory, Payable, Receivable } from '@/types';
 
 interface Actor {
   uid: string;
@@ -90,6 +90,29 @@ export async function createPayableFromGRN(params: {
     status: 'open',
     createdAt: serverTimestamp(),
   });
+}
+
+/** Xərc yaradır (09 §9.3) */
+export async function createExpense(
+  params: { category: ExpenseCategory; amount: number; currency: string; paymentMethod: string; description?: string },
+  actor: Actor,
+): Promise<string> {
+  const expenseNumber = await nextNumber('EXP');
+  const ref = await addDoc(collection(getDb(), 'expenses'), {
+    expenseNumber,
+    ...params,
+    description: params.description ?? null,
+    approvalStatus: 'submitted',
+    createdAt: serverTimestamp(),
+  });
+  await logAudit({ userId: actor.uid, username: actor.username, action: 'CREATE', entityType: 'Expense', entityId: ref.id });
+  return ref.id;
+}
+
+/** Xərci təsdiqlə/ödənildi işarələ */
+export async function setExpenseStatus(id: string, status: 'approved' | 'paid', actor: Actor): Promise<void> {
+  await updateDoc(doc(getDb(), 'expenses', id), { approvalStatus: status });
+  await logAudit({ userId: actor.uid, username: actor.username, action: status === 'approved' ? 'APPROVE' : 'UPDATE', entityType: 'Expense', entityId: id });
 }
 
 /** Kreditora ödəniş (AP) */

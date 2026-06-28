@@ -5,10 +5,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { orderBy, where } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
 import { listDocs } from '@/lib/firebase/firestore';
-import { recordCustomerPayment, payPayable } from '@/lib/firebase/finance';
+import { recordCustomerPayment, payPayable, createExpense, setExpenseStatus } from '@/lib/firebase/finance';
 import { useAuth } from '@/components/providers/auth-provider';
-import type { CashRegister, Payable, Receivable } from '@/types';
-import { ARAP_STATUS_META } from '@/lib/constants';
+import type { CashRegister, Expense, ExpenseCategory, Payable, Receivable } from '@/types';
+import { ARAP_STATUS_META, EXPENSE_CATEGORIES } from '@/lib/constants';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
 import { EmptyState } from '@/components/shared/empty-state';
@@ -42,11 +42,29 @@ export default function FinancePage() {
   const [method, setMethod] = useState<'cash' | 'transfer' | 'card'>('transfer');
   const [registerId, setRegisterId] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [expOpen, setExpOpen] = useState(false);
+  const [exp, setExp] = useState({ category: 'other' as ExpenseCategory, amount: 0, paymentMethod: 'cash', description: '' });
 
   const canManage = can('finance', 'create') || can('receivables', 'update');
   const { data: receivables = [] } = useQuery({ queryKey: ['receivables'], queryFn: () => listDocs<Receivable>('receivables', [orderBy('createdAt', 'desc')]) });
   const { data: payables = [] } = useQuery({ queryKey: ['payables'], queryFn: () => listDocs<Payable>('payables', [orderBy('createdAt', 'desc')]) });
   const { data: registers = [] } = useQuery({ queryKey: ['cash_registers'], queryFn: () => listDocs<CashRegister>('cash_registers', [where('isActive', '==', true)]) });
+  const { data: expenses = [] } = useQuery({ queryKey: ['expenses'], queryFn: () => listDocs<Expense>('expenses', [orderBy('createdAt', 'desc')]) });
+
+  async function saveExpense() {
+    if (exp.amount <= 0) { toast.error('Məbləğ daxil edin'); return; }
+    setSubmitting(true);
+    try {
+      await createExpense({ ...exp, currency: 'AZN' }, actor);
+      toast.success('Xərc əlavə edildi');
+      setExpOpen(false); setExp({ category: 'other', amount: 0, paymentMethod: 'cash', description: '' });
+      qc.invalidateQueries({ queryKey: ['expenses'] });
+    } catch { toast.error('Alınmadı'); } finally { setSubmitting(false); }
+  }
+  async function approveExpense(e: Expense) {
+    await setExpenseStatus(e.id, e.approvalStatus === 'submitted' ? 'approved' : 'paid', actor);
+    qc.invalidateQueries({ queryKey: ['expenses'] });
+  }
 
   const actor = { uid: profile?.uid ?? '', username: profile?.username ?? '' };
   function tsMillis(t: unknown) { return (t as { toMillis?: () => number })?.toMillis?.(); }
@@ -93,6 +111,7 @@ export default function FinancePage() {
         <TabsList>
           <TabsTrigger value="ar">Debitor (AR)</TabsTrigger>
           <TabsTrigger value="ap">Kreditor (AP)</TabsTrigger>
+          <TabsTrigger value="exp">Xərclər</TabsTrigger>
         </TabsList>
 
         <TabsContent value="ar">
@@ -150,7 +169,53 @@ export default function FinancePage() {
             )}
           </Card>
         </TabsContent>
+
+        <TabsContent value="exp">
+          <div className="mb-3 flex justify-end">
+            {canManage && <Button size="sm" onClick={() => setExpOpen(true)}>+ Xərc</Button>}
+          </div>
+          <Card className="rounded-card">
+            {expenses.length === 0 ? <EmptyState title="Xərc yoxdur" description="Xərc əlavə edin" /> : (
+              <Table>
+                <TableHeader><TableRow>
+                  <TableHead>№</TableHead><TableHead>Kateqoriya</TableHead><TableHead>Təsvir</TableHead>
+                  <TableHead className="text-right">Məbləğ</TableHead><TableHead>Status</TableHead>{canManage && <TableHead />}
+                </TableRow></TableHeader>
+                <TableBody>
+                  {expenses.map((e) => (
+                    <TableRow key={e.id}>
+                      <TableCell className="font-mono text-xs">{e.expenseNumber}</TableCell>
+                      <TableCell>{EXPENSE_CATEGORIES[e.category]}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{e.description || '—'}</TableCell>
+                      <TableCell className="text-right font-medium">{formatCurrency(e.amount, e.currency)}</TableCell>
+                      <TableCell><Badge variant={e.approvalStatus === 'paid' ? 'success' : e.approvalStatus === 'approved' ? 'default' : 'secondary'}>{e.approvalStatus}</Badge></TableCell>
+                      {canManage && <TableCell>{e.approvalStatus !== 'paid' && <Button size="sm" variant="outline" onClick={() => approveExpense(e)}>{e.approvalStatus === 'submitted' ? 'Təsdiqlə' : 'Ödənildi'}</Button>}</TableCell>}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </Card>
+        </TabsContent>
       </Tabs>
+
+      {/* Xərc dialoqu */}
+      <Dialog open={expOpen} onOpenChange={setExpOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Yeni xərc</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5"><Label>Kateqoriya</Label>
+              <Select value={exp.category} onValueChange={(v) => setExp({ ...exp, category: v as ExpenseCategory })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{Object.entries(EXPENSE_CATEGORIES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5"><Label>Məbləğ</Label><Input type="number" step="any" value={exp.amount} onChange={(e) => setExp({ ...exp, amount: +e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>Təsvir</Label><Input value={exp.description} onChange={(e) => setExp({ ...exp, description: e.target.value })} /></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setExpOpen(false)}>Ləğv</Button><Button onClick={saveExpense} disabled={submitting}>{submitting && <Loader2 className="animate-spin" />} Əlavə et</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* AR ödəniş dialoqu */}
       <Dialog open={!!arTarget} onOpenChange={(o) => !o && setArTarget(null)}>

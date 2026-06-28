@@ -316,6 +316,7 @@ export interface ProductionOrder {
   orderNumber: string;
   productId: string;
   productName?: string;
+  productSku?: string;
   bomId: string;
   sizeDistribution: Record<string, number>; // "28-30": 40
   totalQuantity: number;

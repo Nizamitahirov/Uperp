@@ -1,0 +1,218 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper funksiyalar (01 §1.3.2) ──────────────────────
+    function signedIn() {
+      return request.auth != null;
+    }
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function getRole() {
+      return userDoc().role;
+    }
+    function hasRole(roles) {
+      return signedIn() && getRole() in roles;
+    }
+    function isActive() {
+      return signedIn() && userDoc().isActive == true;
+    }
+
+    // ── İstifadəçilər ───────────────────────────────────────
+    match /users/{uid} {
+      // Hər kəs öz profilini oxuya bilər; director hamısını
+      allow read: if signedIn() && (uid == request.auth.uid || hasRole(['director']));
+      // İlk Google login-də öz customer profilini yarada bilər
+      allow create: if signedIn() && uid == request.auth.uid && request.resource.data.role == 'customer';
+      // Director tam idarə edir; istifadəçi yalnız lastLogin yeniləyə bilər
+      allow update: if hasRole(['director']) ||
+                       (uid == request.auth.uid &&
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLogin']));
+      allow delete: if hasRole(['director']);
+    }
+
+    match /roles/{roleId} {
+      allow read: if signedIn();
+      allow write: if hasRole(['director']);
+    }
+
+    // ── Audit log: yalnız yaratma + director oxuma ──────────
+    match /audit_logs/{logId} {
+      allow read: if hasRole(['director', 'accountant']);
+      allow create: if signedIn();
+      allow update, delete: if false;
+    }
+
+    // ── Xam material + cost layers ──────────────────────────
+    match /raw_materials/{docId} {
+      allow read: if hasRole(['director','accountant','warehouse','production','supply']);
+      allow create, update: if hasRole(['director','warehouse','supply']);
+      allow delete: if hasRole(['director']);
+
+      match /cost_layers/{layerId} {
+        allow read: if hasRole(['director','accountant','warehouse','production','supply']);
+        allow write: if hasRole(['director','warehouse','supply']);
+      }
+    }
+
+    match /stock_movements/{docId} {
+      allow read: if hasRole(['director','accountant','warehouse','production','supply']);
+      allow create: if hasRole(['director','warehouse','production','supply']);
+      allow update, delete: if hasRole(['director']);
+    }
+
+    // ── BOM ─────────────────────────────────────────────────
+    match /boms/{docId} {
+      allow read: if hasRole(['director','accountant','warehouse','production']);
+      allow create, update: if hasRole(['director','production']);
+      allow delete: if hasRole(['director']);
+    }
+
+    // ── Təchizatçılar ───────────────────────────────────────
+    match /suppliers/{docId} {
+      allow read: if hasRole(['director','accountant','warehouse','supply']);
+      allow create, update: if hasRole(['director','supply']);
+      allow delete: if hasRole(['director']);
+    }
+
+    // ── Müştərilər (customer yalnız özünü) ──────────────────
+    match /customers/{customerId} {
+      allow read: if hasRole(['director','accountant','sales','cashier'])
+                  || (hasRole(['customer']) && customerId == request.auth.uid);
+      allow create, update: if hasRole(['director','sales']);
+      allow delete: if hasRole(['director']);
+    }
+
+    match /deals/{docId} {
+      allow read, write: if hasRole(['director','sales']);
+    }
+    match /activities/{docId} {
+      allow read, write: if hasRole(['director','sales']);
+    }
+
+    // ── Satınalma ───────────────────────────────────────────
+    match /purchase_requests/{docId} {
+      allow read: if hasRole(['director','accountant','warehouse','supply']);
+      allow create, update: if hasRole(['director','supply','warehouse']);
+      allow delete: if hasRole(['director']);
+    }
+    match /purchase_orders/{docId} {
+      allow read: if hasRole(['director','accountant','warehouse','supply']);
+      allow create, update: if hasRole(['director','supply']);
+      allow delete: if hasRole(['director']);
+    }
+    match /grns/{docId} {
+      allow read: if hasRole(['director','accountant','warehouse','production','supply']);
+      allow create, update: if hasRole(['director','warehouse']);
+      allow delete: if hasRole(['director']);
+    }
+
+    // ── İstehsal ────────────────────────────────────────────
+    match /production_orders/{docId} {
+      allow read: if hasRole(['director','accountant','warehouse','production']);
+      allow create, update: if hasRole(['director','production']);
+      allow delete: if hasRole(['director']);
+    }
+    match /washing_orders/{docId} {
+      allow read: if hasRole(['director','accountant','warehouse','production']);
+      allow create, update: if hasRole(['director','production']);
+      allow delete: if hasRole(['director']);
+    }
+    match /qc_inspections/{docId} {
+      allow read: if hasRole(['director','accountant','warehouse','production']);
+      allow create, update: if hasRole(['director','production']);
+      allow delete: if hasRole(['director']);
+    }
+
+    // ── Hazır məhsul + kataloq ──────────────────────────────
+    match /finished_goods/{docId} {
+      allow read: if signedIn();
+      allow create, update: if hasRole(['director','warehouse','production']);
+      allow delete: if hasRole(['director']);
+    }
+    match /products/{productId} {
+      allow read: if signedIn();
+      allow create, update: if hasRole(['director','production']);
+      allow delete: if hasRole(['director']);
+    }
+
+    // ── Satış ───────────────────────────────────────────────
+    match /quotations/{docId} {
+      allow read: if hasRole(['director','accountant','sales','cashier']);
+      allow write: if hasRole(['director','sales']);
+    }
+    match /sales_orders/{docId} {
+      allow read: if hasRole(['director','accountant','sales','cashier'])
+                  || (hasRole(['customer']) && resource.data.customerId == request.auth.uid);
+      allow create: if hasRole(['director','sales','cashier','customer']);
+      allow update: if hasRole(['director','sales','cashier']);
+      allow delete: if hasRole(['director']);
+    }
+    match /deliveries/{docId} {
+      allow read: if hasRole(['director','accountant','sales','warehouse']);
+      allow write: if hasRole(['director','sales','warehouse']);
+    }
+    match /pos_sales/{docId} {
+      allow read: if hasRole(['director','accountant','sales','cashier']);
+      allow create, update: if hasRole(['director','cashier']);
+      allow delete: if hasRole(['director']);
+    }
+    match /sales_returns/{docId} {
+      allow read: if hasRole(['director','accountant','sales','cashier']);
+      allow write: if hasRole(['director','sales','cashier']);
+    }
+
+    // ── Maliyyə ─────────────────────────────────────────────
+    match /cash_registers/{docId} {
+      allow read: if hasRole(['director','accountant','cashier']);
+      allow write: if hasRole(['director','accountant','cashier']);
+    }
+    match /cash_transactions/{docId} {
+      allow read: if hasRole(['director','accountant','cashier']);
+      allow create: if hasRole(['director','accountant','cashier']);
+      allow update, delete: if hasRole(['director','accountant']);
+    }
+    match /invoices/{docId} {
+      allow read: if hasRole(['director','accountant','sales','cashier'])
+                  || (hasRole(['customer']) && resource.data.customerId == request.auth.uid);
+      allow write: if hasRole(['director','accountant']);
+    }
+    match /receivables/{docId} {
+      allow read: if hasRole(['director','accountant','sales']);
+      allow write: if hasRole(['director','accountant']);
+    }
+    match /payables/{docId} {
+      allow read: if hasRole(['director','accountant','supply']);
+      allow write: if hasRole(['director','accountant']);
+    }
+    match /payment_receipts/{docId} {
+      allow read: if hasRole(['director','accountant','sales','cashier']);
+      allow write: if hasRole(['director','accountant']);
+    }
+    match /expenses/{docId} {
+      allow read, write: if hasRole(['director','accountant']);
+    }
+
+    // ── Bildirişlər + tənzimləmələr ─────────────────────────
+    match /notifications/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update: if signedIn();
+      allow delete: if hasRole(['director']);
+    }
+    match /settings/{docId} {
+      allow read: if signedIn();
+      allow write: if hasRole(['director']);
+    }
+    match /exchange_rates/{docId} {
+      allow read: if signedIn();
+      allow write: if hasRole(['director','accountant']);
+    }
+
+    // Default: qadağa
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

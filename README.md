@@ -2,7 +2,14 @@
 
 Bu repozitoriya **cins şalvar istehsalı** üçün tam ERP/MES sisteminin texniki spesifikasiyası **və tətbiqidir**.
 
-> 📦 **Tətbiq statusu:** Faza 1 (Təməl) hazırdır — Next.js 14 + Firebase + TypeScript foundation, autentifikasiya (email + Gmail/Google), RBAC (8 rol + səlahiyyət matrisi), dizayn sistemi (Tailwind + shadcn-style komponentlər), responsive sidebar layout, **Xam material** və **Təchizatçı** CRUD modulları, Firestore security rules + indexes. Sonrakı fazalar `16_DEPLOYMENT.md`-dəki yol xəritəsinə əməl edir.
+> 📦 **Tətbiq statusu:** Bütün 6 faza implementasiya edilib (`16_DEPLOYMENT.md` yol xəritəsi):
+>
+> - **Faza 1 — Təməl:** Next.js 14 + Firebase + TypeScript, auth (email + Gmail/Google), RBAC (8 rol + səlahiyyət matrisi), User/Role Management, dizayn sistemi, responsive layout, i18n (AZ/EN).
+> - **Faza 2 — Anbar + Costing:** stok hərəkətləri, FIFO/AVCO + landed cost, PO/GRN, bildiriş sistemi (real-time bell + mərkəz), material detal (cost layers), PO/GRN çap.
+> - **Faza 3 — İstehsal (MES):** məhsul kataloqu + AI description (Groq), size-based BOM + costing, istehsal sifarişi + avtomatik stok çıxımı, yuyulma + itki izləmə, QC, hazır məhsul.
+> - **Faza 4 — Satış:** müştərilər + CRM (Kanban), satış sifarişi + rezervasiya + faktura/AR, POS + kassa, debitor/kreditor (AR/AP) + ödənişlər, geri qaytarma.
+> - **Faza 5 — Maliyyə + Analitika:** xərclər, executive dashboard (real KPI + Recharts + AI insights), hesabatlar (P&L, satış, inventar), overstock bildiriş.
+> - **Faza 6 — AI + Kataloq + Polish:** AI chatbot (RAG-lite), müştəri kataloqu (moda jurnalı) + B2B sifariş + sifariş izləmə, PWA (service worker), tənzimləmələr.
 
 ## ⚡ Quraşdırma (Local)
 

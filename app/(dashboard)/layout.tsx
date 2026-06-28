@@ -6,6 +6,7 @@ import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/components/providers/auth-provider';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Topbar } from '@/components/layout/topbar';
+import { ChatWidget } from '@/components/ai/chat-widget';
 import { cn } from '@/lib/utils/cn';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -50,6 +51,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <Topbar onMenuClick={() => setMobileOpen(true)} />
         <main className={cn('flex-1 p-4 lg:p-6')}>{children}</main>
       </div>
+      <ChatWidget />
     </div>
   );
 }

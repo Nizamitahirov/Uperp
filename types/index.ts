@@ -224,6 +224,183 @@ export interface GRN {
   createdAt?: Timestamp | null;
 }
 
+// ── Məhsul kataloqu (10 §10.1) ──────────────────────────────
+export type ProductFit = 'regular' | 'slim' | 'skinny' | 'loose';
+export type ProductStatus = 'active' | 'draft' | 'archived';
+export type WashType = 'rinse' | 'enzyme' | 'stone' | 'bleach' | 'acid' | 'heavy_stone';
+
+export interface ProductImage {
+  url: string;
+  type: 'main' | 'back' | 'side' | 'detail' | 'model' | 'flat_lay';
+  isPrimary: boolean;
+}
+
+export interface Product {
+  id: string;
+  sku: string;
+  modelCode: string;
+  name: { az: string; en: string };
+  category: 'men' | 'women' | 'kids';
+  subCategory?: string;
+  colorCode?: string;
+  colorName?: string;
+  washEffect?: WashType;
+  materialType?: string;
+  weight?: string;
+  stretch?: boolean;
+  fit?: ProductFit;
+  rise?: 'low' | 'mid' | 'high';
+  season?: string;
+  collection?: string;
+  sizes?: string[]; // ölçü aralıqları, məs ["28-30","32-34"]
+  wholesalePrice: number;
+  retailPrice: number;
+  cost: number; // BOM-dan
+  images?: ProductImage[];
+  description?: { az: string; en: string };
+  features?: string[];
+  tags?: string[];
+  bomId?: string;
+  status: ProductStatus;
+  createdAt?: Timestamp | null;
+  updatedAt?: Timestamp | null;
+}
+
+// ── BOM (03 §3.2) ───────────────────────────────────────────
+export interface BOMItem {
+  materialId: string;
+  materialCode: string;
+  materialName: string;
+  quantity: number;
+  unit: string;
+  wastagePercentage: number;
+  totalQuantity: number; // quantity * (1 + wastage/100)
+  unitCost: number; // snapshot
+  lineCost: number;
+}
+
+export type BOMStatus = 'draft' | 'active' | 'archived' | 'obsolete';
+
+export interface BOM {
+  id: string;
+  bomNumber: string;
+  productId: string;
+  productName?: string;
+  version: string;
+  status: BOMStatus;
+  sizeBasedItems: Record<string, BOMItem[]>; // "28-30": [...]
+  laborCost: number;
+  laborMinutes: number;
+  overheadPercentage: number;
+  packagingCost: number;
+  materialCost: number; // orta (ölçülər üzrə)
+  totalCost: number;
+  notes?: string;
+  createdBy?: string;
+  createdAt?: Timestamp | null;
+  updatedAt?: Timestamp | null;
+}
+
+// ── İstehsal (06 §6.2) ──────────────────────────────────────
+export type ProductionStatus =
+  | 'planned'
+  | 'material_check'
+  | 'in_progress'
+  | 'in_washing'
+  | 'in_qc'
+  | 'completed'
+  | 'cancelled';
+
+export interface ProductionOrder {
+  id: string;
+  orderNumber: string;
+  productId: string;
+  productName?: string;
+  bomId: string;
+  sizeDistribution: Record<string, number>; // "28-30": 40
+  totalQuantity: number;
+  plannedStartDate?: Timestamp | null;
+  plannedEndDate?: Timestamp | null;
+  priority: 'low' | 'normal' | 'high';
+  status: ProductionStatus;
+  standardCost: number;
+  actualMaterialCost: number;
+  actualLaborCost: number;
+  washingCost: number;
+  totalActualCost: number;
+  producedQuantity?: number;
+  defectQuantity?: number;
+  washingLossQuantity?: number;
+  createdBy?: string;
+  createdAt?: Timestamp | null;
+  updatedAt?: Timestamp | null;
+}
+
+// ── Yuyulma (06 §6.4) ───────────────────────────────────────
+export type WashingStatus = 'sent' | 'in_process' | 'returned' | 'closed';
+
+export interface WashingOrder {
+  id: string;
+  washNumber: string;
+  productionOrderId: string;
+  productionOrderNumber?: string;
+  washType: WashType;
+  isOutsourced: boolean;
+  laundryId?: string;
+  laundryName?: string;
+  pricePerPiece?: number;
+  sentQuantity: number;
+  sentDate?: Timestamp | null;
+  expectedReturnDate?: Timestamp | null;
+  returnedQuantity?: number;
+  damagedQuantity?: number;
+  returnDate?: Timestamp | null;
+  lossQuantity?: number;
+  lossPercentage?: number;
+  shrinkageMeasured?: number;
+  status: WashingStatus;
+  cost: number;
+  notes?: string;
+  createdAt?: Timestamp | null;
+}
+
+// ── QC (06 §6.5) ────────────────────────────────────────────
+export interface QCInspection {
+  id: string;
+  productionOrderId: string;
+  productionOrderNumber?: string;
+  inspectedQuantity: number;
+  acceptedQuantity: number;
+  defectQuantity: number;
+  defects?: { type: string; count: number }[];
+  grade: 'A' | 'B' | 'reject';
+  inspector?: string;
+  createdAt?: Timestamp | null;
+}
+
+// ── Hazır məhsul stoku (07 §7.1) ────────────────────────────
+export interface FinishedGoodStock {
+  id: string;
+  productId: string;
+  productName?: string;
+  variantSku: string;
+  size: string;
+  color?: string;
+  grade: 'A' | 'B';
+  currentStock: number;
+  reservedStock: number;
+  availableStock: number;
+  minStock: number;
+  maxStock: number;
+  reorderPoint: number;
+  unitCost: number;
+  wholesalePrice: number;
+  retailPrice: number;
+  warehouseId?: string;
+  locationCode?: string;
+  updatedAt?: Timestamp | null;
+}
+
 // ── Bildirişlər (13 §13.2) ──────────────────────────────────
 export type NotificationSeverity = 'critical' | 'warning' | 'info' | 'success' | 'action';
 

@@ -38,7 +38,57 @@ export const PO_STATUS_META: Record<PoStatus, { label: string; variant: 'default
 /** Valyutalar */
 export const CURRENCIES = ['AZN', 'USD', 'EUR', 'TRY', 'CNY'] as const;
 
-import type { MovementType } from '@/types';
+import type { MovementType, WashType, ProductFit, ProductionStatus, WashingStatus, BOMStatus } from '@/types';
+
+/** Yuyulma növləri + maksimal normal itki % (06 §6.4.1, 14.6 washTypeMaxLoss) */
+export const WASH_TYPES: Record<WashType, { label: string; maxLoss: number }> = {
+  rinse: { label: 'Rinse (minimal)', maxLoss: 3 },
+  enzyme: { label: 'Enzyme (yumşaq fade)', maxLoss: 5 },
+  stone: { label: 'Stone (vintage)', maxLoss: 7 },
+  bleach: { label: 'Bleach (açıq)', maxLoss: 6 },
+  acid: { label: 'Acid (mərmər)', maxLoss: 6 },
+  heavy_stone: { label: 'Heavy Stone (çox köhnə)', maxLoss: 12 },
+};
+
+export const PRODUCT_FITS: Record<ProductFit, string> = {
+  regular: 'Regular',
+  slim: 'Slim',
+  skinny: 'Skinny',
+  loose: 'Loose',
+};
+
+export const PRODUCT_CATEGORIES = [
+  { value: 'men', label: 'Kişi' },
+  { value: 'women', label: 'Qadın' },
+  { value: 'kids', label: 'Uşaq' },
+] as const;
+
+/** Tipik ölçü aralıqları (waist) */
+export const SIZE_RANGES = ['28-30', '30-32', '32-34', '34-36', '36-38', '40-42'] as const;
+
+export const PRODUCTION_STATUS_META: Record<ProductionStatus, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive' }> = {
+  planned: { label: 'Planlaşdırılıb', variant: 'secondary' },
+  material_check: { label: 'Material yoxlaması', variant: 'warning' },
+  in_progress: { label: 'İstehsalda', variant: 'default' },
+  in_washing: { label: 'Yuyulmada', variant: 'warning' },
+  in_qc: { label: 'QC-də', variant: 'warning' },
+  completed: { label: 'Tamamlanıb', variant: 'success' },
+  cancelled: { label: 'Ləğv edilib', variant: 'destructive' },
+};
+
+export const WASHING_STATUS_META: Record<WashingStatus, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' }> = {
+  sent: { label: 'Göndərilib', variant: 'warning' },
+  in_process: { label: 'Prosesdə', variant: 'warning' },
+  returned: { label: 'Qayıdıb', variant: 'default' },
+  closed: { label: 'Bağlanıb', variant: 'success' },
+};
+
+export const BOM_STATUS_META: Record<BOMStatus, { label: string; variant: 'default' | 'secondary' | 'success' | 'destructive' }> = {
+  draft: { label: 'Qaralama', variant: 'secondary' },
+  active: { label: 'Aktiv', variant: 'success' },
+  archived: { label: 'Arxivlənib', variant: 'secondary' },
+  obsolete: { label: 'Köhnəlib', variant: 'destructive' },
+};
 
 /** Stok hərəkət növü etiketləri (02 §2.3.1) */
 export const MOVEMENT_TYPE_LABELS: Record<MovementType, string> = {

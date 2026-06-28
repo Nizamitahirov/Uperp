@@ -60,6 +60,29 @@ export const rawMaterialSchema = z.object({
 });
 export type RawMaterialFormValues = z.infer<typeof rawMaterialSchema>;
 
+/** Məhsul sxemi — 10 §10.1 */
+export const productSchema = z.object({
+  modelCode: z.string().min(1, 'Model kodu tələb olunur').max(50),
+  nameAz: z.string().min(2, 'Ad (AZ) tələb olunur').max(150),
+  nameEn: z.string().max(150).optional().or(z.literal('')),
+  category: z.enum(['men', 'women', 'kids']).default('men'),
+  subCategory: z.string().max(60).optional().or(z.literal('')),
+  colorName: z.string().max(60).optional().or(z.literal('')),
+  colorCode: z.string().max(30).optional().or(z.literal('')),
+  washEffect: z.enum(['rinse', 'enzyme', 'stone', 'bleach', 'acid', 'heavy_stone']).optional(),
+  fit: z.enum(['regular', 'slim', 'skinny', 'loose']).optional(),
+  weight: z.string().max(20).optional().or(z.literal('')),
+  season: z.string().max(40).optional().or(z.literal('')),
+  collection: z.string().max(60).optional().or(z.literal('')),
+  sizes: z.array(z.string()).default([]),
+  wholesalePrice: z.coerce.number().min(0).default(0),
+  retailPrice: z.coerce.number().min(0).default(0),
+  status: z.enum(['active', 'draft', 'archived']).default('draft'),
+  descriptionAz: z.string().max(1000).optional().or(z.literal('')),
+  descriptionEn: z.string().max(1000).optional().or(z.literal('')),
+});
+export type ProductFormValues = z.infer<typeof productSchema>;
+
 /** PO sətri — 05 §5.3 */
 export const poItemSchema = z.object({
   materialId: z.string().min(1, 'Material seçin'),

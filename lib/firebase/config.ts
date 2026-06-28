@@ -62,3 +62,20 @@ export function getFirebaseStorage(): FirebaseStorage {
   if (!_storage) _storage = getStorage(getFirebaseApp());
   return _storage;
 }
+
+/**
+ * İkinci (secondary) Firebase app instansı qaytarır. Admin yeni istifadəçi
+ * yaradanda `createUserWithEmailAndPassword` cari sessiyanı əvəz etməsin deyə
+ * istifadə olunur. İstifadədən sonra `deleteApp` çağırılmalıdır.
+ */
+export function getSecondaryAuth(): { auth: Auth; cleanup: () => Promise<void> } {
+  const name = `secondary-${Date.now()}`;
+  const secondaryApp = initializeApp(firebaseConfig, name);
+  return {
+    auth: getAuth(secondaryApp),
+    cleanup: async () => {
+      const { deleteApp } = await import('firebase/app');
+      await deleteApp(secondaryApp);
+    },
+  };
+}

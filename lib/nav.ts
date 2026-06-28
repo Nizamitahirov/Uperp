@@ -13,6 +13,7 @@ import {
   Wallet,
   BarChart3,
   UserCog,
+  ShieldCheck,
   Settings,
   type LucideIcon,
 } from 'lucide-react';
@@ -42,5 +43,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/finance', labelKey: 'finance', icon: Wallet, module: 'finance' },
   { href: '/reports', labelKey: 'reports', icon: BarChart3, module: 'reports' },
   { href: '/users', labelKey: 'users', icon: UserCog, module: 'users' },
+  { href: '/roles', labelKey: 'roles', icon: ShieldCheck, module: 'roles' },
   { href: '/settings', labelKey: 'settings', icon: Settings, module: 'settings' },
 ];

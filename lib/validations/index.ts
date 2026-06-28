@@ -25,6 +25,19 @@ export const userSchema = z.object({
 });
 export type UserFormValues = z.infer<typeof userSchema>;
 
+/** İstifadəçi düzəliş sxemi — uid/username/email/createdAt dəyişməz (01 §1.4.4) */
+export const userEditSchema = z.object({
+  fullName: z.string().min(2, 'Ən azı 2 simvol').max(100),
+  phone: z
+    .string()
+    .regex(/^\+994\d{9}$/, 'Format: +994XXXXXXXXX')
+    .optional()
+    .or(z.literal('')),
+  role: z.enum(ALL_ROLE_CODES as [string, ...string[]]),
+  isActive: z.boolean().default(true),
+});
+export type UserEditFormValues = z.infer<typeof userEditSchema>;
+
 /** Xam material sxemi — 02_RAW_MATERIAL.md */
 export const rawMaterialSchema = z.object({
   code: z.string().min(1, 'Kod tələb olunur').max(50),

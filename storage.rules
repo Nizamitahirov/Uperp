@@ -1,0 +1,41 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+    function maxSize(mb) {
+      return request.resource.size < mb * 1024 * 1024;
+    }
+
+    // Avatarlar — istifadəçi öz avatarını yükləyə bilər
+    match /avatars/{uid}/{fileName} {
+      allow read: if signedIn();
+      allow write: if signedIn() && request.auth.uid == uid && isImage() && maxSize(5);
+    }
+
+    // Material / məhsul şəkilləri
+    match /materials/{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if signedIn() && isImage() && maxSize(10);
+    }
+    match /products/{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if signedIn() && isImage() && maxSize(10);
+    }
+
+    // Sənədlər (qaimə, faktura PDF və s.)
+    match /documents/{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if signedIn() && maxSize(20);
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

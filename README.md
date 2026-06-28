@@ -1,7 +1,27 @@
 # 👖 JEANS ERP/MES — Texniki Tələblər (Claude Code üçün)
 
-Bu repozitoriya **cins şalvar istehsalı** üçün tam ERP/MES sisteminin texniki spesifikasiyasıdır.
-Claude Code bu sənədlərə əsasən tətbiqi sıfırdan qurmalıdır.
+Bu repozitoriya **cins şalvar istehsalı** üçün tam ERP/MES sisteminin texniki spesifikasiyası **və tətbiqidir**.
+
+> 📦 **Tətbiq statusu:** Faza 1 (Təməl) hazırdır — Next.js 14 + Firebase + TypeScript foundation, autentifikasiya (email + Gmail/Google), RBAC (8 rol + səlahiyyət matrisi), dizayn sistemi (Tailwind + shadcn-style komponentlər), responsive sidebar layout, **Xam material** və **Təchizatçı** CRUD modulları, Firestore security rules + indexes. Sonrakı fazalar `16_DEPLOYMENT.md`-dəki yol xəritəsinə əməl edir.
+
+## ⚡ Quraşdırma (Local)
+
+```bash
+npm install
+cp .env.example .env.local   # və dəyərləri doldur
+npm run dev                  # http://localhost:3000
+npm run build                # production build
+```
+
+`.env.local`-da **Firebase Web App config** (Console → Project Settings → Your apps → Web app) tələb olunur:
+`NEXT_PUBLIC_FIREBASE_API_KEY`, `..._MESSAGING_SENDER_ID`, `..._APP_ID`. Qalan dəyərlər (`PROJECT_ID`,
+`AUTH_DOMAIN`, `STORAGE_BUCKET`) layihə ID-sindən törəyir. Groq açarı və Admin SDK yalnız server tərəfdə
+(Cloud Functions) istifadə olunur və **heç vaxt client-ə düşmür**.
+
+> ⚠️ `.env.local` git-ə commit OLUNMUR (`.gitignore`-dadır). Sirləri orada saxla.
+
+---
+
 
 ## 🛠 Texnoloji Stack
 - **Frontend:** Next.js 14 (App Router) + TypeScript + Tailwind + shadcn/ui + Recharts

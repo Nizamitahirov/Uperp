@@ -1,0 +1,10 @@
+{
+  "name": "Jeans ERP/MES",
+  "short_name": "Jeans ERP",
+  "description": "Cins şalvar istehsalı üçün ERP/MES sistemi",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1d4ed8",
+  "icons": []
+}

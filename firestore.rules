@@ -194,6 +194,12 @@ service cloud.firestore {
       allow read, write: if hasRole(['director','accountant']);
     }
 
+    // ── Nömrə sayğacları (PO/GRN ardıcıllığı) ───────────────
+    match /counters/{key} {
+      allow read: if signedIn();
+      allow write: if hasRole(['director','supply','warehouse','accountant','sales','cashier','production']);
+    }
+
     // ── Bildirişlər + tənzimləmələr ─────────────────────────
     match /notifications/{docId} {
       allow read: if signedIn();

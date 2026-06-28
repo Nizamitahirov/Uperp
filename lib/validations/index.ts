@@ -60,6 +60,34 @@ export const rawMaterialSchema = z.object({
 });
 export type RawMaterialFormValues = z.infer<typeof rawMaterialSchema>;
 
+/** PO sətri — 05 §5.3 */
+export const poItemSchema = z.object({
+  materialId: z.string().min(1, 'Material seçin'),
+  materialName: z.string(),
+  materialCode: z.string().optional(),
+  unit: z.string(),
+  quantity: z.coerce.number().positive('Miqdar > 0 olmalıdır'),
+  unitPrice: z.coerce.number().min(0, 'Qiymət mənfi ola bilməz'),
+  discount: z.coerce.number().min(0).max(100).optional(),
+});
+
+/** Purchase Order sxemi — 05 §5.3 */
+export const purchaseOrderSchema = z.object({
+  supplierId: z.string().min(1, 'Təchizatçı seçin'),
+  expectedDeliveryDate: z.string().optional().or(z.literal('')),
+  items: z.array(poItemSchema).min(1, 'Ən azı bir material əlavə edin'),
+  customsFee: z.coerce.number().min(0).default(0),
+  shippingFee: z.coerce.number().min(0).default(0),
+  insuranceFee: z.coerce.number().min(0).default(0),
+  otherFees: z.coerce.number().min(0).default(0),
+  currency: z.string().default('AZN'),
+  exchangeRate: z.coerce.number().positive('Məzənnə > 0').default(1),
+  landedCostAllocation: z.enum(['value', 'quantity']).default('value'),
+  incoterms: z.string().optional().or(z.literal('')),
+  notes: z.string().max(500).optional().or(z.literal('')),
+});
+export type PurchaseOrderFormValues = z.infer<typeof purchaseOrderSchema>;
+
 /** Təchizatçı sxemi — 04_CONTACTS_CRM.md */
 export const supplierSchema = z.object({
   code: z.string().min(1, 'Kod tələb olunur').max(50),

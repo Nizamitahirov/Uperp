@@ -42,6 +42,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/products', labelKey: 'products', icon: ShoppingBag, module: 'products' },
   { href: '/sales', labelKey: 'sales', icon: Store, module: 'sales_orders' },
   { href: '/pos', labelKey: 'pos', icon: Store, module: 'pos' },
+  { href: '/cash', labelKey: 'cash', icon: Wallet, module: 'cash' },
   { href: '/finance', labelKey: 'finance', icon: Wallet, module: 'finance' },
   { href: '/reports', labelKey: 'reports', icon: BarChart3, module: 'reports' },
   { href: '/users', labelKey: 'users', icon: UserCog, module: 'users' },

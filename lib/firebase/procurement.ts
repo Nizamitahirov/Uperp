@@ -5,6 +5,7 @@ import { logAudit } from './audit';
 import { allocateLandedCost } from '@/lib/costing';
 import { postGRN } from './stock';
 import { createNotification } from './notifications';
+import { createPayableFromGRN } from './finance';
 import type { GRN, POItem, PoStatus, PurchaseOrder } from '@/types';
 import type { PurchaseOrderFormValues } from '@/lib/validations';
 
@@ -169,6 +170,18 @@ export async function createAndPostGRN(
   // Stoka daxil et (cost layers + movements + bildiriş)
   await postGRN(grn, actor);
   await updateDoc(grnRef, { posted: true });
+
+  // Kreditor (AP) — qəbul edilən materialın landed dəyəri qədər
+  const apAmount = grnItems.reduce((s, i) => s + i.acceptedQuantity * i.landedUnitCost, 0);
+  if (apAmount > 0) {
+    await createPayableFromGRN({
+      supplierId: po.supplierId,
+      supplierName: po.supplierName,
+      purchaseOrderId: po.id,
+      grnId: grnRef.id,
+      amount: apAmount,
+    });
+  }
 
   // PO sətirlərində receivedQuantity yenilə və status hesabla
   const updatedItems = po.items.map((p) => {

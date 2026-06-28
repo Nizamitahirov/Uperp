@@ -83,6 +83,25 @@ export const productSchema = z.object({
 });
 export type ProductFormValues = z.infer<typeof productSchema>;
 
+/** Müştəri sxemi — 04 §4.3 */
+export const customerSchema = z.object({
+  name: z.string().min(2, 'Ad tələb olunur').max(150),
+  companyName: z.string().max(150).optional().or(z.literal('')),
+  type: z.enum(['wholesale', 'retail', 'distributor']).default('wholesale'),
+  taxNumber: z.string().max(50).optional().or(z.literal('')),
+  email: z.string().email('Düzgün email').optional().or(z.literal('')),
+  contactPerson: z.string().max(100).optional().or(z.literal('')),
+  phone: z.string().max(30).optional().or(z.literal('')),
+  address: z.string().max(250).optional().or(z.literal('')),
+  creditLimit: z.coerce.number().min(0).default(0),
+  paymentTermDays: z.coerce.number().min(0).default(0),
+  discountRate: z.coerce.number().min(0).max(100).default(0),
+  segment: z.enum(['VIP', 'new', 'high_volume', 'problem', 'regular']).default('regular'),
+  status: z.enum(['active', 'passive', 'blacklist']).default('active'),
+  notes: z.string().max(500).optional().or(z.literal('')),
+});
+export type CustomerFormValues = z.infer<typeof customerSchema>;
+
 /** PO sətri — 05 §5.3 */
 export const poItemSchema = z.object({
   materialId: z.string().min(1, 'Material seçin'),

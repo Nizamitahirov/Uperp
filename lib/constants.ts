@@ -38,7 +38,71 @@ export const PO_STATUS_META: Record<PoStatus, { label: string; variant: 'default
 /** Valyutalar */
 export const CURRENCIES = ['AZN', 'USD', 'EUR', 'TRY', 'CNY'] as const;
 
-import type { MovementType, WashType, ProductFit, ProductionStatus, WashingStatus, BOMStatus } from '@/types';
+import type {
+  MovementType, WashType, ProductFit, ProductionStatus, WashingStatus, BOMStatus,
+  CustomerSegment, CustomerType, SalesOrderStatus, ExpenseCategory, ARAPStatus,
+} from '@/types';
+
+/** ƏDV dərəcəsi (09 §9.8, 14.6) */
+export const VAT_RATE = 18;
+
+export const CUSTOMER_TYPES: Record<CustomerType, string> = {
+  wholesale: 'Topdan (B2B)',
+  retail: 'Pərakəndə',
+  distributor: 'Distribyutor',
+};
+
+export const CUSTOMER_SEGMENTS: Record<CustomerSegment, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive' }> = {
+  VIP: { label: 'VIP', variant: 'success' },
+  new: { label: 'Yeni', variant: 'default' },
+  high_volume: { label: 'Yüksək həcm', variant: 'default' },
+  problem: { label: 'Problemli', variant: 'destructive' },
+  regular: { label: 'Adi', variant: 'secondary' },
+};
+
+export const SALES_ORDER_STATUS_META: Record<SalesOrderStatus, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive' }> = {
+  new: { label: 'Yeni', variant: 'secondary' },
+  confirmed: { label: 'Təsdiqlənib (rezerv)', variant: 'default' },
+  preparing: { label: 'Hazırlanır', variant: 'warning' },
+  shipped: { label: 'Göndərilib', variant: 'warning' },
+  delivered: { label: 'Çatdırılıb', variant: 'success' },
+  cancelled: { label: 'Ləğv', variant: 'destructive' },
+  returned: { label: 'Qaytarılıb', variant: 'destructive' },
+};
+
+export const ARAP_STATUS_META: Record<ARAPStatus, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive' }> = {
+  open: { label: 'Açıq', variant: 'secondary' },
+  partial: { label: 'Qismən', variant: 'warning' },
+  paid: { label: 'Ödənilib', variant: 'success' },
+  overdue: { label: 'Gecikib', variant: 'destructive' },
+};
+
+export const EXPENSE_CATEGORIES: Record<ExpenseCategory, string> = {
+  raw_material: 'Xam material',
+  production: 'İstehsal',
+  washing: 'Yuyulma',
+  packaging: 'Qablaşdırma',
+  salary: 'Əmək haqqı',
+  rent: 'İcarə',
+  utilities: 'Kommunal',
+  transport: 'Nəqliyyat',
+  marketing: 'Marketinq',
+  bank_fees: 'Bank xərcləri',
+  taxes: 'Vergilər',
+  other: 'Digər',
+};
+
+export const CASH_IN_CATEGORIES = ['Müştəri ödənişi', 'Nağd satış (POS)', 'Bank köçürməsi', 'Digər gəlir'];
+export const CASH_OUT_CATEGORIES = ['Supplier ödənişi', 'Əmək haqqı', 'Kommunal', 'Nəqliyyat', 'Yuyulma', 'Ofis xərcləri', 'Vergilər', 'Digər'];
+
+/** Topdan endirim cədvəli (08 §8.3) — miqdara görə % */
+export function tieredDiscount(qty: number): number {
+  if (qty >= 200) return 15;
+  if (qty >= 100) return 10;
+  if (qty >= 50) return 5;
+  return 0;
+}
+
 
 /** Yuyulma növləri + maksimal normal itki % (06 §6.4.1, 14.6 washTypeMaxLoss) */
 export const WASH_TYPES: Record<WashType, { label: string; maxLoss: number }> = {

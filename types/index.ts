@@ -420,6 +420,238 @@ export interface AppNotification {
   createdAt?: Timestamp | null;
 }
 
+// ── Müştəri + CRM (04) ──────────────────────────────────────
+export type CustomerType = 'wholesale' | 'retail' | 'distributor';
+export type CustomerSegment = 'VIP' | 'new' | 'high_volume' | 'problem' | 'regular';
+export type CustomerStatus = 'active' | 'passive' | 'blacklist';
+
+export interface Customer {
+  id: string;
+  code: string;
+  type: CustomerType;
+  name: string;
+  companyName?: string;
+  taxNumber?: string;
+  authUid?: string;
+  email?: string;
+  contactPerson?: string;
+  phone?: string;
+  address?: string;
+  creditLimit: number;
+  paymentTermDays: number;
+  discountRate: number; // %
+  currentBalance: number; // AR
+  segment: CustomerSegment;
+  tags?: string[];
+  status: CustomerStatus;
+  notes?: string;
+  createdAt?: Timestamp | null;
+  updatedAt?: Timestamp | null;
+}
+
+export type DealStage = 'lead' | 'contacted' | 'quotation' | 'negotiation' | 'won' | 'lost';
+
+export interface Deal {
+  id: string;
+  customerId: string;
+  customerName?: string;
+  title: string;
+  stage: DealStage;
+  estimatedValue: number;
+  probability: number;
+  expectedCloseDate?: Timestamp | null;
+  assignedTo?: string;
+  notes?: string;
+  createdAt?: Timestamp | null;
+}
+
+// ── Satış (08) ──────────────────────────────────────────────
+export type SalesChannel = 'wholesale' | 'retail' | 'online';
+export type SalesOrderStatus = 'new' | 'confirmed' | 'preparing' | 'shipped' | 'delivered' | 'cancelled' | 'returned';
+export type PaymentStatus = 'unpaid' | 'partial' | 'paid';
+export type PaymentMethod = 'cash' | 'transfer' | 'card' | 'credit';
+
+export interface SalesOrderItem {
+  variantSku: string;
+  finishedGoodId: string;
+  productName: string;
+  size: string;
+  grade?: string;
+  quantity: number;
+  unitPrice: number;
+  discount: number; // %
+  lineTotal: number;
+}
+
+export interface SalesOrder {
+  id: string;
+  soNumber: string;
+  customerId: string;
+  customerName?: string;
+  channel: SalesChannel;
+  date?: Timestamp | null;
+  items: SalesOrderItem[];
+  subtotal: number;
+  discountAmount: number;
+  vatAmount: number;
+  totalAmount: number;
+  deliveryAddress?: string;
+  deliveryDate?: Timestamp | null;
+  paymentMethod: PaymentMethod;
+  paymentStatus: PaymentStatus;
+  paidAmount: number;
+  status: SalesOrderStatus;
+  invoiceId?: string;
+  reserved?: boolean;
+  createdBy?: string;
+  createdAt?: Timestamp | null;
+  updatedAt?: Timestamp | null;
+}
+
+export interface POSItem {
+  variantSku: string;
+  finishedGoodId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
+export interface POSSale {
+  id: string;
+  receiptNumber: string;
+  cashierId: string;
+  cashierName?: string;
+  customerId?: string;
+  items: POSItem[];
+  subtotal: number;
+  discount: number;
+  vat: number;
+  total: number;
+  paymentMethod: 'cash' | 'card' | 'transfer';
+  amountReceived: number;
+  change: number;
+  registerId?: string;
+  createdAt?: Timestamp | null;
+}
+
+// ── Kassa (08 §8.6) ─────────────────────────────────────────
+export interface CashRegister {
+  id: string;
+  name: string;
+  type: 'cash' | 'bank' | 'pos_terminal';
+  currency: string;
+  currentBalance: number;
+  isActive: boolean;
+  createdAt?: Timestamp | null;
+}
+
+export interface CashTransaction {
+  id: string;
+  registerId: string;
+  registerName?: string;
+  type: 'in' | 'out';
+  category: string;
+  amount: number;
+  currency: string;
+  description?: string;
+  referenceType?: string;
+  referenceId?: string;
+  userId?: string;
+  username?: string;
+  createdAt?: Timestamp | null;
+}
+
+// ── Maliyyə (09) ────────────────────────────────────────────
+export type ARAPStatus = 'open' | 'partial' | 'paid' | 'overdue';
+
+export interface Invoice {
+  id: string;
+  invoiceNumber: string;
+  type: 'sales' | 'purchase';
+  customerId?: string;
+  customerName?: string;
+  salesOrderId?: string;
+  subtotal: number;
+  vatAmount: number;
+  totalAmount: number;
+  paidAmount: number;
+  status: PaymentStatus;
+  dueDate?: Timestamp | null;
+  createdAt?: Timestamp | null;
+}
+
+export interface Receivable {
+  id: string;
+  customerId: string;
+  customerName?: string;
+  invoiceId: string;
+  invoiceNumber?: string;
+  amount: number;
+  paidAmount: number;
+  balance: number;
+  dueDate?: Timestamp | null;
+  status: ARAPStatus;
+  createdAt?: Timestamp | null;
+}
+
+export interface Payable {
+  id: string;
+  supplierId: string;
+  supplierName?: string;
+  purchaseOrderId: string;
+  grnId?: string;
+  invoiceNumber?: string;
+  amount: number;
+  paidAmount: number;
+  balance: number;
+  dueDate?: Timestamp | null;
+  status: ARAPStatus;
+  createdAt?: Timestamp | null;
+}
+
+export interface PaymentReceipt {
+  id: string;
+  receiptNumber: string;
+  customerId: string;
+  customerName?: string;
+  amount: number;
+  method: 'cash' | 'transfer' | 'card';
+  appliedInvoices?: { invoiceId: string; amount: number }[];
+  createdAt?: Timestamp | null;
+}
+
+export type ExpenseCategory =
+  | 'raw_material' | 'production' | 'washing' | 'packaging'
+  | 'salary' | 'rent' | 'utilities' | 'transport'
+  | 'marketing' | 'bank_fees' | 'taxes' | 'other';
+
+export interface Expense {
+  id: string;
+  expenseNumber: string;
+  category: ExpenseCategory;
+  amount: number;
+  currency: string;
+  paymentMethod: string;
+  description?: string;
+  approvalStatus: 'submitted' | 'approved' | 'paid';
+  createdAt?: Timestamp | null;
+}
+
+export interface SalesReturn {
+  id: string;
+  returnNumber: string;
+  originalSaleId: string;
+  customerId?: string;
+  items: { variantSku: string; finishedGoodId?: string; quantity: number; reason: string }[];
+  reason: 'defective' | 'wrong_size' | 'customer_request' | 'other';
+  returnType: 'refund' | 'exchange' | 'store_credit';
+  refundAmount?: number;
+  status: 'pending' | 'approved' | 'completed';
+  restockable: boolean;
+  createdAt?: Timestamp | null;
+}
+
 /** audit_logs/{id} — 01 §1.5 */
 export interface AuditLog {
   id: string;

@@ -3,33 +3,15 @@ import { NextRequest, NextResponse } from 'next/server';
 export const runtime = 'nodejs';
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const MODEL = 'llama-3.3-70b-versatile';
+const TEXT_MODEL = 'llama-3.3-70b-versatile';
+// Multimodal (şəkil) model — Groq Llama 4 Scout
+const VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
 
 interface GenerateBody {
   task: 'product_description' | 'summary' | 'custom';
   prompt?: string;
   attributes?: Record<string, unknown>;
-}
-
-function buildMessages(body: GenerateBody) {
-  if (body.task === 'product_description') {
-    const a = body.attributes ?? {};
-    return [
-      {
-        role: 'system',
-        content:
-          'Sən moda jurnalı tonunda yazan peşəkar marketinq kopiraytersən. Cins (denim) məhsulları üçün cəlbedici təsvir yazırsan. Cavabı dəqiq bu JSON formatında ver: {"az": "...", "en": "..."}. Başqa heç nə yazma.',
-      },
-      {
-        role: 'user',
-        content: `Bu cins şalvar üçün qısa (2-3 cümlə) cəlbedici təsvir yaz. Atributlar: ${JSON.stringify(a)}. Azərbaycan və İngilis dillərində.`,
-      },
-    ];
-  }
-  return [
-    { role: 'system', content: 'Sən faydalı köməkçisən. Azərbaycan dilində cavab ver.' },
-    { role: 'user', content: body.prompt ?? '' },
-  ];
+  imageUrl?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -45,15 +27,47 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Yanlış sorğu' }, { status: 400 });
   }
 
+  const isProductDesc = body.task === 'product_description';
+  const useVision = isProductDesc && !!body.imageUrl;
+
+  let messages: unknown[];
+  if (isProductDesc) {
+    const a = body.attributes ?? {};
+    const sys =
+      'Sən moda jurnalı tonunda yazan peşəkar marketinq kopiraytersən. Cins (denim) məhsulları üçün cəlbedici, qısa təsvir yazırsan. Cavabı dəqiq bu JSON formatında ver: {"az": "...", "en": "..."}. Başqa heç nə yazma.';
+    if (useVision) {
+      messages = [
+        { role: 'system', content: sys },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: `Bu şəkildəki cins məhsula baxaraq cəlbedici təsvir yaz (2-3 cümlə, AZ və EN). Əlavə atributlar: ${JSON.stringify(a)}.` },
+            { type: 'image_url', image_url: { url: body.imageUrl } },
+          ],
+        },
+      ];
+    } else {
+      messages = [
+        { role: 'system', content: sys },
+        { role: 'user', content: `Bu cins şalvar üçün qısa cəlbedici təsvir yaz. Atributlar: ${JSON.stringify(a)}. AZ və EN.` },
+      ];
+    }
+  } else {
+    messages = [
+      { role: 'system', content: 'Sən faydalı köməkçisən. Azərbaycan dilində cavab ver.' },
+      { role: 'user', content: body.prompt ?? '' },
+    ];
+  }
+
   try {
     const res = await fetch(GROQ_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: MODEL,
-        messages: buildMessages(body),
+        model: useVision ? VISION_MODEL : TEXT_MODEL,
+        messages,
         temperature: 0.7,
-        max_tokens: 600,
+        max_tokens: 700,
       }),
     });
 
@@ -65,8 +79,7 @@ export async function POST(req: NextRequest) {
     const data = await res.json();
     const content: string = data.choices?.[0]?.message?.content ?? '';
 
-    if (body.task === 'product_description') {
-      // JSON çıxarmağa cəhd et
+    if (isProductDesc) {
       try {
         const match = content.match(/\{[\s\S]*\}/);
         const parsed = match ? JSON.parse(match[0]) : { az: content, en: '' };

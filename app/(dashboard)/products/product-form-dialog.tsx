@@ -103,17 +103,21 @@ export function ProductFormDialog({ open, onOpenChange, initial, onSubmit, submi
   async function handleAI() {
     setAiLoading(true);
     try {
-      const desc = await generateProductDescription({
-        name: watch('nameAz'),
-        color: watch('colorName'),
-        fit: watch('fit'),
-        wash: watch('washEffect'),
-        weight: watch('weight'),
-        category: watch('category'),
-      });
+      const primaryImage = (watch('images') ?? [])[0];
+      const desc = await generateProductDescription(
+        {
+          name: watch('nameAz'),
+          color: watch('colorName'),
+          fit: watch('fit'),
+          wash: watch('washEffect'),
+          weight: watch('weight'),
+          category: watch('category'),
+        },
+        primaryImage, // varsa şəkildən (vision), yoxdursa atributlardan
+      );
       setValue('descriptionAz', desc.az);
       setValue('descriptionEn', desc.en);
-      toast.success('AI təsvir yaradıldı');
+      toast.success(primaryImage ? 'AI təsvir (şəkildən) yaradıldı' : 'AI təsvir yaradıldı');
     } catch (e) {
       toast.error('AI təsvir alınmadı', e instanceof Error ? e.message : undefined);
     } finally {

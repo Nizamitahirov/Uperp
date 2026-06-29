@@ -44,6 +44,7 @@ function toPayload(v: ProductFormValues) {
     retailPrice: v.retailPrice,
     status: v.status,
     description: { az: v.descriptionAz || '', en: v.descriptionEn || '' },
+    images: (v.images ?? []).map((url, i) => ({ url, type: i === 0 ? 'main' : 'detail', isPrimary: i === 0 })),
   };
 }
 

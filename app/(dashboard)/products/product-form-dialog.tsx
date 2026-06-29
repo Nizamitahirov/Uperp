@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ImageUpload } from '@/components/shared/image-upload';
 import { toast } from '@/components/ui/toast';
 
 interface Props {
@@ -48,6 +49,7 @@ const DEFAULTS: ProductFormValues = {
   status: 'draft',
   descriptionAz: '',
   descriptionEn: '',
+  images: [],
 };
 
 export function ProductFormDialog({ open, onOpenChange, initial, onSubmit, submitting }: Props) {
@@ -80,6 +82,7 @@ export function ProductFormDialog({ open, onOpenChange, initial, onSubmit, submi
               status: initial.status,
               descriptionAz: initial.description?.az ?? '',
               descriptionEn: initial.description?.en ?? '',
+              images: initial.images?.map((i) => i.url) ?? [],
             }
           : DEFAULTS,
       );
@@ -87,6 +90,7 @@ export function ProductFormDialog({ open, onOpenChange, initial, onSubmit, submi
   }, [open, initial, reset]);
 
   const sizes = watch('sizes') ?? [];
+  const images = watch('images') ?? [];
   const category = watch('category');
   const fit = watch('fit');
   const washEffect = watch('washEffect');
@@ -194,6 +198,11 @@ export function ProductFormDialog({ open, onOpenChange, initial, onSubmit, submi
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="sm:col-span-2 space-y-1.5">
+            <Label>Şəkillər</Label>
+            <ImageUpload path={`products/${watch('modelCode') || 'misc'}`} value={images} onChange={(urls) => setValue('images', urls)} max={6} />
           </div>
 
           <div className="sm:col-span-2 space-y-1.5">

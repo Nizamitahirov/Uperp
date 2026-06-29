@@ -79,6 +79,7 @@ export const productSchema = z.object({
   status: z.enum(['active', 'draft', 'archived']).default('draft'),
   descriptionAz: z.string().max(1000).optional().or(z.literal('')),
   descriptionEn: z.string().max(1000).optional().or(z.literal('')),
+  images: z.array(z.string()).default([]),
 });
 export type ProductFormValues = z.infer<typeof productSchema>;
 

@@ -117,7 +117,12 @@ export default function CatalogPage() {
               return (
                 <button key={p.id} onClick={() => setSelected(p)} className="group text-left">
                   <div className="flex aspect-[3/4] items-center justify-center overflow-hidden rounded-card bg-muted transition-transform group-hover:scale-[1.02]">
-                    <Package className="h-12 w-12 text-muted-foreground/40" />
+                    {p.images?.[0]?.url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={p.images[0].url} alt={p.name?.az ?? ''} className="h-full w-full object-cover" />
+                    ) : (
+                      <Package className="h-12 w-12 text-muted-foreground/40" />
+                    )}
                   </div>
                   <div className="mt-3">
                     <p className="font-display text-lg font-semibold leading-tight">{p.name?.az}</p>

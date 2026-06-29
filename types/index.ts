@@ -307,6 +307,73 @@ export interface Product {
   updatedAt?: Timestamp | null;
 }
 
+// ── Workflow / Avtomatlaşdırma (Power Automate üslubu) ──────
+export type WorkflowTriggerType =
+  | 'manual'
+  | 'sales_order.created'
+  | 'sales_order.status_changed'
+  | 'purchase_order.created'
+  | 'purchase_order.pending_approval'
+  | 'expense.submitted'
+  | 'grn.received'
+  | 'production_order.created'
+  | 'production_order.completed'
+  | 'stock.below_reorder'
+  | 'customer.created'
+  | 'invoice.overdue'
+  | 'catalog.published';
+
+export type WorkflowActionType =
+  | 'approval'
+  | 'notify'
+  | 'assign'
+  | 'update_status'
+  | 'create_task'
+  | 'ai_summary'
+  | 'webhook'
+  | 'delay';
+
+export type WorkflowConditionOp = 'eq' | 'neq' | 'gt' | 'lt' | 'gte' | 'lte' | 'contains';
+
+export interface WorkflowCondition {
+  field: string;
+  op: WorkflowConditionOp;
+  value: string;
+}
+
+export interface WorkflowStep {
+  id: string;
+  type: WorkflowActionType;
+  assigneeType?: 'role' | 'user';
+  assigneeRole?: string;
+  assigneeUserId?: string;
+  assigneeUserName?: string;
+  message?: string;
+  approvalLevel?: number;
+  newStatus?: string;
+  delayHours?: number;
+  webhookUrl?: string;
+  condition?: WorkflowCondition | null;
+}
+
+export type WorkflowStatus = 'active' | 'draft' | 'paused';
+
+export interface Workflow {
+  id: string;
+  name: string;
+  description?: string;
+  trigger: WorkflowTriggerType;
+  triggerCondition?: WorkflowCondition | null;
+  steps: WorkflowStep[];
+  status: WorkflowStatus;
+  channels?: ('app' | 'email')[];
+  runCount?: number;
+  lastRunAt?: Timestamp | null;
+  createdBy?: string;
+  createdAt?: Timestamp | null;
+  updatedAt?: Timestamp | null;
+}
+
 // ── Katalog / Moda Jurnalı ──────────────────────────────────
 export type CatalogStatus = 'draft' | 'published' | 'archived';
 

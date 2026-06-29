@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { Loader2, Save, UserCog, ShieldCheck, ScrollText } from 'lucide-react';
+import { Loader2, Save, UserCog, ShieldCheck, ScrollText, Workflow, ChevronRight } from 'lucide-react';
 import { getDb } from '@/lib/firebase/config';
 import { useAuth } from '@/components/providers/auth-provider';
 import { PageHeader } from '@/components/shared/page-header';
@@ -90,6 +90,20 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Avtomatlaşdırma */}
+      {can('settings', 'update') && (
+        <div className="mt-4">
+          <Link href="/settings/workflows" className="flex items-center gap-4 rounded-card border border-primary/20 bg-primary/5 p-4 transition-colors hover:bg-primary/10">
+            <span className="flex h-12 w-12 items-center justify-center rounded-button bg-primary text-primary-foreground"><Workflow className="h-6 w-6" /></span>
+            <div className="flex-1">
+              <p className="font-semibold">Workflow Management</p>
+              <p className="text-sm text-muted-foreground">Avtomatlaşdırma — trigger/əməliyyat, təsdiqlər, rol və şəxs üzrə təyinatlar (Power Automate üslubu)</p>
+            </div>
+            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+          </Link>
+        </div>
+      )}
 
       {/* Sistem idarəetməsi — sidebar-dan buraya köçürülmüş keçidlər */}
       <div className="mt-4">

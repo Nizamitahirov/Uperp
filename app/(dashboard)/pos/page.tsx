@@ -3,25 +3,31 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { where } from 'firebase/firestore';
-import { Loader2, Minus, Plus, Search, ShoppingCart, Trash2 } from 'lucide-react';
+import { Loader2, Minus, Plus, Receipt, Search, ShoppingCart, Trash2, X } from 'lucide-react';
 import { listDocs } from '@/lib/firebase/firestore';
 import { completePOSSale } from '@/lib/firebase/pos';
 import { useAuth } from '@/components/providers/auth-provider';
-import type { CashRegister, FinishedGoodStock, POSItem } from '@/types';
-import { VAT_RATE } from '@/lib/constants';
+import type { CashRegister, FinishedGoodStock, POSItem, Product } from '@/types';
+import { VAT_RATE, PRODUCT_CATEGORIES } from '@/lib/constants';
 import { formatCurrency } from '@/lib/utils/format';
 import { printDocument } from '@/lib/utils/print';
-import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/components/ui/toast';
+import { cn } from '@/lib/utils/cn';
+
+const TILE_TINTS = [
+  'from-[#5B5BF5] to-[#7C7CF8]', 'from-[#22C55E] to-[#4ADE80]', 'from-[#F59E0B] to-[#FBBF24]',
+  'from-[#EC4899] to-[#F472B6]', 'from-[#06B6D4] to-[#22D3EE]', 'from-[#A855F7] to-[#C084FC]',
+];
+const tintOf = (s: string) => TILE_TINTS[[...s].reduce((a, c) => a + c.charCodeAt(0), 0) % TILE_TINTS.length];
 
 export default function POSPage() {
   const { profile, can } = useAuth();
   const [search, setSearch] = useState('');
+  const [cat, setCat] = useState<string>('all');
   const [cart, setCart] = useState<POSItem[]>([]);
   const [discount, setDiscount] = useState(0);
   const [method, setMethod] = useState<'cash' | 'card' | 'transfer'>('cash');
@@ -30,12 +36,19 @@ export default function POSPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const { data: goods = [] } = useQuery({ queryKey: ['finished_goods'], queryFn: () => listDocs<FinishedGoodStock>('finished_goods', []) });
+  const { data: products = [] } = useQuery({ queryKey: ['products'], queryFn: () => listDocs<Product>('products', []) });
   const { data: registers = [] } = useQuery({ queryKey: ['cash_registers'], queryFn: () => listDocs<CashRegister>('cash_registers', [where('isActive', '==', true)]) });
+
+  const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
 
   const available = useMemo(() => {
     const s = search.trim().toLowerCase();
-    return goods.filter((g) => (g.availableStock ?? 0) > 0 && (!s || g.variantSku?.toLowerCase().includes(s) || g.productName?.toLowerCase().includes(s)));
-  }, [goods, search]);
+    return goods.filter((g) => {
+      if ((g.availableStock ?? 0) <= 0) return false;
+      if (cat !== 'all' && productById.get(g.productId)?.category !== cat) return false;
+      return !s || g.variantSku?.toLowerCase().includes(s) || g.productName?.toLowerCase().includes(s);
+    });
+  }, [goods, search, cat, productById]);
 
   const subtotal = cart.reduce((s, i) => s + i.lineTotal, 0);
   const discountAmt = subtotal * (discount / 100);
@@ -43,6 +56,7 @@ export default function POSPage() {
   const vat = net * (VAT_RATE / 100);
   const total = net + vat;
   const change = method === 'cash' ? Math.max(0, received - total) : 0;
+  const count = cart.reduce((s, i) => s + i.quantity, 0);
 
   if (!can('pos', 'create')) return <p className="text-muted-foreground">POS-a girişiniz yoxdur.</p>;
 
@@ -86,90 +100,177 @@ export default function POSPage() {
       <p style="text-align:center;margin-top:24px">Təşəkkürlər!</p>`);
   }
 
+  const quickCash = [total, Math.ceil(total / 5) * 5, Math.ceil(total / 10) * 10, Math.ceil(total / 50) * 50].filter((v, i, a) => v > 0 && a.indexOf(v) === i).slice(0, 4);
+
   return (
-    <div>
-      <PageHeader title="POS — Pərakəndə Satış" subtitle="Sürətli satış interfeysi" />
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-        {/* Məhsul grid */}
-        <div className="lg:col-span-3">
-          <div className="mb-3 relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input className="pl-9" placeholder="SKU və ya ad axtar..." value={search} onChange={(e) => setSearch(e.target.value)} />
+    <div className="-m-4 lg:-m-6">
+      <div className="grid h-[calc(100vh-4rem)] grid-cols-1 lg:grid-cols-[1fr_400px]">
+        {/* ── Sol: kateqoriya + məhsul tiles ── */}
+        <div className="flex min-w-0 flex-col border-r border-border">
+          <div className="flex items-center gap-3 border-b border-border p-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input className="h-11 pl-9" placeholder="Məhsul və ya SKU axtar..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
           </div>
-          {available.length === 0 ? (
-            <Card className="rounded-card"><CardContent className="p-8 text-center text-sm text-muted-foreground">Mövcud hazır məhsul yoxdur</CardContent></Card>
-          ) : (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {available.map((g) => (
-                <button key={g.id} onClick={() => addToCart(g)} className="rounded-card border p-3 text-left transition-colors hover:bg-accent">
-                  <p className="text-sm font-medium leading-tight">{g.productName}</p>
-                  <p className="text-xs text-muted-foreground">{g.variantSku}</p>
-                  <p className="mt-1 text-sm font-bold">{formatCurrency(g.retailPrice || g.wholesalePrice || g.unitCost || 0, 'AZN')}</p>
-                  <p className="text-xs text-muted-foreground">Mövcud: {g.availableStock}</p>
+
+          {/* Kateqoriya çipləri */}
+          <div className="flex gap-2 overflow-x-auto border-b border-border px-4 py-3">
+            <Chip active={cat === 'all'} onClick={() => setCat('all')}>Hamısı</Chip>
+            {PRODUCT_CATEGORIES.map((c) => <Chip key={c.value} active={cat === c.value} onClick={() => setCat(c.value)}>{c.label}</Chip>)}
+          </div>
+
+          {/* Tiles grid */}
+          <div className="flex-1 overflow-y-auto p-4">
+            {available.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Mövcud hazır məhsul yoxdur</div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                {available.map((g) => {
+                  const p = productById.get(g.productId);
+                  const img = p?.images?.find((i) => i.isPrimary)?.url ?? p?.images?.[0]?.url;
+                  const price = g.retailPrice || g.wholesalePrice || g.unitCost || 0;
+                  return (
+                    <button
+                      key={g.id}
+                      onClick={() => addToCart(g)}
+                      className="group flex flex-col overflow-hidden rounded-card border border-border bg-card text-left shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-soft-lg active:translate-y-0"
+                    >
+                      <div className="relative aspect-square w-full overflow-hidden">
+                        {img ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={img} alt={g.productName ?? ''} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                        ) : (
+                          <div className={cn('flex h-full w-full items-center justify-center bg-gradient-to-br p-2', tintOf(g.productName ?? g.variantSku))}>
+                            <span className="text-center text-sm font-bold leading-tight text-white/95 line-clamp-3">{g.productName}</span>
+                          </div>
+                        )}
+                        <Badge className="absolute right-1.5 top-1.5 bg-black/55 text-[10px] text-white backdrop-blur-sm">{g.availableStock} ədəd</Badge>
+                        <span className="absolute bottom-1.5 left-1.5 rounded-button bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">{g.size} · {g.grade}</span>
+                      </div>
+                      <div className="flex flex-1 flex-col p-2.5">
+                        <p className="line-clamp-2 text-sm font-semibold leading-tight">{g.productName}</p>
+                        <p className="text-[11px] text-muted-foreground">{g.variantSku}</p>
+                        <p className="mt-auto pt-1.5 text-base font-bold text-primary">{formatCurrency(price, 'AZN')}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Sağ: sifariş qəbzi ── */}
+        <div className="flex h-full flex-col bg-card">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3.5">
+            <div className="flex items-center gap-2 font-semibold"><Receipt className="h-5 w-5 text-primary" /> Sifariş
+              {count > 0 && <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-bold text-primary-foreground">{count}</span>}
+            </div>
+            {cart.length > 0 && <Button variant="ghost" size="sm" className="text-danger" onClick={() => setCart([])}><Trash2 className="h-4 w-4" /> Təmizlə</Button>}
+          </div>
+
+          {/* Sətirlər */}
+          <div className="flex-1 overflow-y-auto px-3 py-2">
+            {cart.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
+                <ShoppingCart className="h-10 w-10 opacity-30" />
+                Məhsul seçin
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {cart.map((i) => (
+                  <div key={i.finishedGoodId} className="flex items-center gap-2 rounded-card border border-border bg-background p-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium leading-tight">{i.productName}</p>
+                      <p className="text-xs text-muted-foreground">{formatCurrency(i.unitPrice, 'AZN')} × {i.quantity}</p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => changeQty(i.finishedGoodId, -1)}><Minus className="h-3 w-3" /></Button>
+                      <span className="w-6 text-center text-sm font-semibold tnum">{i.quantity}</span>
+                      <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => changeQty(i.finishedGoodId, 1)}><Plus className="h-3 w-3" /></Button>
+                    </div>
+                    <span className="w-20 text-right text-sm font-bold tnum">{formatCurrency(i.lineTotal, 'AZN')}</span>
+                    <button className="text-muted-foreground hover:text-danger" onClick={() => setCart(cart.filter((x) => x.finishedGoodId !== i.finishedGoodId))}><X className="h-3.5 w-3.5" /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Yekun + ödəniş */}
+          <div className="border-t border-border bg-secondary/40 p-4">
+            <div className="mb-3 space-y-1 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Endirim %</span>
+                <Input type="number" className="h-8 w-20 text-right" value={discount} onChange={(e) => setDiscount(Math.min(100, Math.max(0, +e.target.value)))} />
+              </div>
+              <Row label="Ara cəm" value={formatCurrency(subtotal, 'AZN')} />
+              {discountAmt > 0 && <Row label="Endirim" value={`−${formatCurrency(discountAmt, 'AZN')}`} />}
+              <Row label={`ƏDV (${VAT_RATE}%)`} value={formatCurrency(vat, 'AZN')} />
+              <div className="flex items-center justify-between border-t border-border pt-2 text-lg font-bold"><span>YEKUN</span><span className="text-primary">{formatCurrency(total, 'AZN')}</span></div>
+            </div>
+
+            {registers.length > 0 && (
+              <Select value={registerId} onValueChange={setRegisterId}>
+                <SelectTrigger className="mb-2 h-9"><SelectValue placeholder="Kassa seç (opsional)" /></SelectTrigger>
+                <SelectContent>{registers.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}</SelectContent>
+              </Select>
+            )}
+
+            <div className="mb-2 grid grid-cols-3 gap-2">
+              {(['cash', 'card', 'transfer'] as const).map((mth) => (
+                <button
+                  key={mth}
+                  onClick={() => setMethod(mth)}
+                  className={cn('rounded-button border py-2 text-sm font-semibold transition-colors', method === mth ? 'border-primary bg-primary text-primary-foreground shadow-glow' : 'border-border hover:bg-background')}
+                >
+                  {mth === 'cash' ? 'Nağd' : mth === 'card' ? 'Kart' : 'Köçürmə'}
                 </button>
               ))}
             </div>
-          )}
-        </div>
 
-        {/* Səbət */}
-        <div className="lg:col-span-2">
-          <Card className="rounded-card">
-            <CardContent className="p-4">
-              <div className="mb-3 flex items-center gap-2 font-semibold"><ShoppingCart className="h-4 w-4" /> Səbət</div>
-              {cart.length === 0 ? (
-                <p className="py-6 text-center text-sm text-muted-foreground">Səbət boşdur</p>
-              ) : (
-                <div className="space-y-2">
-                  {cart.map((i) => (
-                    <div key={i.finishedGoodId} className="flex items-center gap-2 text-sm">
-                      <div className="flex-1"><p className="font-medium leading-tight">{i.productName}</p><p className="text-xs text-muted-foreground">{formatCurrency(i.unitPrice, 'AZN')}</p></div>
-                      <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => changeQty(i.finishedGoodId, -1)}><Minus className="h-3 w-3" /></Button>
-                      <span className="w-6 text-center">{i.quantity}</span>
-                      <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => changeQty(i.finishedGoodId, 1)}><Plus className="h-3 w-3" /></Button>
-                      <span className="w-20 text-right font-medium">{formatCurrency(i.lineTotal, 'AZN')}</span>
-                      <Button variant="ghost" size="icon" className="h-6 w-6 text-danger" onClick={() => setCart(cart.filter((x) => x.finishedGoodId !== i.finishedGoodId))}><Trash2 className="h-3 w-3" /></Button>
-                    </div>
+            {method === 'cash' && (
+              <div className="mb-2 space-y-2">
+                <div className="grid grid-cols-4 gap-1.5">
+                  {quickCash.map((v) => (
+                    <button key={v} onClick={() => setReceived(v)} className="rounded-button border border-border py-1.5 text-xs font-medium hover:bg-background">{v}</button>
                   ))}
                 </div>
-              )}
-
-              <div className="mt-4 space-y-2 border-t pt-3 text-sm">
-                <div className="flex items-center justify-between"><Label>Endirim %</Label><Input type="number" className="w-24" value={discount} onChange={(e) => setDiscount(+e.target.value)} /></div>
-                <Row label="Ara cəm" value={formatCurrency(subtotal, 'AZN')} />
-                <Row label="Endirim" value={`−${formatCurrency(discountAmt, 'AZN')}`} />
-                <Row label={`ƏDV (${VAT_RATE}%)`} value={formatCurrency(vat, 'AZN')} />
-                <Row label="YEKUN" value={formatCurrency(total, 'AZN')} bold />
-              </div>
-
-              <div className="mt-3 space-y-2">
-                <Select value={registerId} onValueChange={setRegisterId}>
-                  <SelectTrigger><SelectValue placeholder="Kassa seç (opsional)" /></SelectTrigger>
-                  <SelectContent>{registers.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}</SelectContent>
-                </Select>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['cash', 'card', 'transfer'] as const).map((m) => (
-                    <Button key={m} variant={method === m ? 'default' : 'outline'} size="sm" onClick={() => setMethod(m)}>
-                      {m === 'cash' ? 'Nağd' : m === 'card' ? 'Kart' : 'Köçürmə'}
-                    </Button>
-                  ))}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm text-muted-foreground">Alınan</span>
+                  <Input type="number" className="h-9 w-32 text-right text-base font-semibold" value={received || ''} onChange={(e) => setReceived(+e.target.value)} />
                 </div>
-                {method === 'cash' && (
-                  <div className="flex items-center justify-between"><Label>Alınan</Label><Input type="number" className="w-32" value={received} onChange={(e) => setReceived(+e.target.value)} /></div>
+                {received > 0 && (
+                  <div className="flex items-center justify-between rounded-button bg-success/10 px-3 py-1.5 text-sm font-bold text-success">
+                    <span>Qaytarma</span><span>{formatCurrency(change, 'AZN')}</span>
+                  </div>
                 )}
-                {method === 'cash' && received > 0 && <Row label="Qaytarma" value={formatCurrency(change, 'AZN')} bold />}
-                <Button className="w-full" onClick={complete} disabled={submitting || cart.length === 0}>
-                  {submitting ? <Loader2 className="animate-spin" /> : <ShoppingCart className="h-4 w-4" />} Satışı tamamla
-                </Button>
               </div>
-            </CardContent>
-          </Card>
+            )}
+
+            <Button className="h-12 w-full text-base shadow-glow" onClick={complete} disabled={submitting || cart.length === 0}>
+              {submitting ? <Loader2 className="animate-spin" /> : <ShoppingCart className="h-5 w-5" />}
+              {cart.length > 0 ? `Tamamla · ${formatCurrency(total, 'AZN')}` : 'Tamamla'}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
+function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn('shrink-0 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors', active ? 'border-primary bg-primary text-primary-foreground shadow-glow' : 'border-border hover:bg-secondary')}
+    >
+      {children}
+    </button>
+  );
+}
+
 function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
-  return <div className={`flex justify-between ${bold ? 'font-bold' : 'text-muted-foreground'}`}><span>{label}</span><span>{value}</span></div>;
+  return <div className={cn('flex justify-between', bold ? 'font-bold' : 'text-muted-foreground')}><span>{label}</span><span className="tnum">{value}</span></div>;
 }

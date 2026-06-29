@@ -59,6 +59,12 @@
     "roles": "Roles",
     "settings": "Settings"
   },
+  "navGroup": {
+    "warehouse_supply": "Warehouse & Supply",
+    "production": "Production",
+    "sales_customer": "Sales & Customer",
+    "finance_admin": "Finance & System"
+  },
   "materials": {
     "title": "Raw Material Warehouse",
     "subtitle": "Material catalog, stock and costing",

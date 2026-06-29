@@ -4,7 +4,6 @@ import {
   Layers,
   Truck,
   Users2,
-  Handshake,
   ShoppingCart,
   Factory,
   Droplets,
@@ -12,13 +11,10 @@ import {
   ShoppingBag,
   BookOpen,
   Store,
-  FileText,
   Wallet,
   BarChart3,
   CalendarRange,
   UserCog,
-  ShieldCheck,
-  ScrollText,
   Settings,
   type LucideIcon,
 } from 'lucide-react';
@@ -31,29 +27,61 @@ export interface NavItem {
   module: ModuleKey;
 }
 
-/** Sidebar naviqasiya — hər element bir modula bağlıdır (RBAC ilə filtrlənir) */
-export const NAV_ITEMS: NavItem[] = [
-  { href: '/dashboard', labelKey: 'dashboard', icon: LayoutDashboard, module: 'dashboard' },
-  { href: '/materials', labelKey: 'raw_materials', icon: Package, module: 'raw_materials' },
-  { href: '/bom', labelKey: 'bom', icon: Layers, module: 'bom' },
-  { href: '/suppliers', labelKey: 'suppliers', icon: Truck, module: 'suppliers' },
-  { href: '/customers', labelKey: 'customers', icon: Users2, module: 'customers' },
-  { href: '/crm', labelKey: 'crm', icon: Handshake, module: 'customers' },
-  { href: '/procurement', labelKey: 'procurement', icon: ShoppingCart, module: 'purchase_orders' },
-  { href: '/production', labelKey: 'production', icon: Factory, module: 'production_orders' },
-  { href: '/washing', labelKey: 'washing', icon: Droplets, module: 'washing' },
-  { href: '/finished-goods', labelKey: 'finished_goods', icon: Boxes, module: 'finished_goods' },
-  { href: '/planning', labelKey: 'planning', icon: CalendarRange, module: 'reports' },
-  { href: '/products', labelKey: 'products', icon: ShoppingBag, module: 'products' },
-  { href: '/catalogs', labelKey: 'catalogs', icon: BookOpen, module: 'products' },
-  { href: '/sales', labelKey: 'sales', icon: Store, module: 'sales_orders' },
-  { href: '/quotations', labelKey: 'quotations', icon: FileText, module: 'sales_orders' },
-  { href: '/pos', labelKey: 'pos', icon: Store, module: 'pos' },
-  { href: '/cash', labelKey: 'cash', icon: Wallet, module: 'cash' },
-  { href: '/finance', labelKey: 'finance', icon: Wallet, module: 'finance' },
-  { href: '/reports', labelKey: 'reports', icon: BarChart3, module: 'reports' },
-  { href: '/audit', labelKey: 'audit', icon: ScrollText, module: 'reports' },
-  { href: '/users', labelKey: 'users', icon: UserCog, module: 'users' },
-  { href: '/roles', labelKey: 'roles', icon: ShieldCheck, module: 'roles' },
-  { href: '/settings', labelKey: 'settings', icon: Settings, module: 'settings' },
+export interface NavGroup {
+  /** Bölmə başlığı (messages navGroup.*) — boşdursa başlıqsız */
+  labelKey?: string;
+  items: NavItem[];
+}
+
+/**
+ * Sidebar naviqasiya — məntiqi bölmələrə qruplaşdırılıb (vizual sadəlik).
+ * Bəzi modullar (CRM, Təkliflər, Kassa, Rollar, Audit) artıq ana səhifələrin
+ * daxilindən keçidlərlə açılır — sidebar yığcam qalsın deyə buradan çıxarılıb.
+ */
+export const NAV_GROUPS: NavGroup[] = [
+  {
+    items: [
+      { href: '/dashboard', labelKey: 'dashboard', icon: LayoutDashboard, module: 'dashboard' },
+    ],
+  },
+  {
+    labelKey: 'warehouse_supply',
+    items: [
+      { href: '/materials', labelKey: 'raw_materials', icon: Package, module: 'raw_materials' },
+      { href: '/suppliers', labelKey: 'suppliers', icon: Truck, module: 'suppliers' },
+      { href: '/procurement', labelKey: 'procurement', icon: ShoppingCart, module: 'purchase_orders' },
+      { href: '/planning', labelKey: 'planning', icon: CalendarRange, module: 'reports' },
+    ],
+  },
+  {
+    labelKey: 'production',
+    items: [
+      { href: '/bom', labelKey: 'bom', icon: Layers, module: 'bom' },
+      { href: '/production', labelKey: 'production', icon: Factory, module: 'production_orders' },
+      { href: '/washing', labelKey: 'washing', icon: Droplets, module: 'washing' },
+      { href: '/finished-goods', labelKey: 'finished_goods', icon: Boxes, module: 'finished_goods' },
+    ],
+  },
+  {
+    labelKey: 'sales_customer',
+    items: [
+      { href: '/products', labelKey: 'products', icon: ShoppingBag, module: 'products' },
+      { href: '/catalogs', labelKey: 'catalogs', icon: BookOpen, module: 'products' },
+      { href: '/customers', labelKey: 'customers', icon: Users2, module: 'customers' },
+      { href: '/sales', labelKey: 'sales', icon: Store, module: 'sales_orders' },
+      { href: '/pos', labelKey: 'pos', icon: ShoppingCart, module: 'pos' },
+    ],
+  },
+  {
+    labelKey: 'finance_admin',
+    items: [
+      { href: '/finance', labelKey: 'finance', icon: Wallet, module: 'finance' },
+      { href: '/reports', labelKey: 'reports', icon: BarChart3, module: 'reports' },
+      { href: '/users', labelKey: 'users', icon: UserCog, module: 'users' },
+      { href: '/settings', labelKey: 'settings', icon: Settings, module: 'settings' },
+    ],
+  },
 ];
+
+/** Düz siyahı (geriyə uyğunluq üçün) */
+export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((g) => g.items);

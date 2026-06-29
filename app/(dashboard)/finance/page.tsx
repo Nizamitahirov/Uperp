@@ -3,7 +3,8 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { orderBy, where } from 'firebase/firestore';
-import { Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import { Loader2, Wallet } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import { listDocs } from '@/lib/firebase/firestore';
 import { recordCustomerPayment, payPayable, createExpense, setExpenseStatus } from '@/lib/firebase/finance';
@@ -111,7 +112,9 @@ export default function FinancePage() {
 
   return (
     <div>
-      <PageHeader title="Maliyyə" subtitle="Debitor (AR) və Kreditor (AP) idarəsi" />
+      <PageHeader title="Maliyyə" subtitle="Debitor (AR) və Kreditor (AP) idarəsi" action={
+        <Button variant="outline" asChild><Link href="/cash"><Wallet className="h-4 w-4" /> Kassa</Link></Button>
+      } />
 
       <div className="mb-4 grid grid-cols-2 gap-4">
         <Card className="rounded-card"><CardContent className="p-4"><p className="text-xs text-muted-foreground">Debitor (alınacaq)</p><p className="mt-1 text-2xl font-bold text-success">{formatCurrency(arTotal, 'AZN')}</p></CardContent></Card>

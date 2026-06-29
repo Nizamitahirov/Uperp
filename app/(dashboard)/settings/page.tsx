@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, UserCog, ShieldCheck, ScrollText } from 'lucide-react';
 import { getDb } from '@/lib/firebase/config';
 import { useAuth } from '@/components/providers/auth-provider';
 import { PageHeader } from '@/components/shared/page-header';
@@ -89,7 +90,31 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Sistem idarəetməsi — sidebar-dan buraya köçürülmüş keçidlər */}
+      <div className="mt-4">
+        <Card className="rounded-card">
+          <CardHeader><CardTitle className="text-base">Sistem idarəetməsi</CardTitle></CardHeader>
+          <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {can('users', 'read') && <AdminLink href="/users" icon={UserCog} title="İstifadəçilər" desc="Hesablar və status" />}
+            {can('roles', 'read') && <AdminLink href="/roles" icon={ShieldCheck} title="Rollar" desc="Səlahiyyət matrisi" />}
+            {can('reports', 'read') && <AdminLink href="/audit" icon={ScrollText} title="Audit Log" desc="Əməliyyat tarixçəsi" />}
+          </CardContent>
+        </Card>
+      </div>
     </div>
+  );
+}
+
+function AdminLink({ href, icon: Icon, title, desc }: { href: string; icon: typeof UserCog; title: string; desc: string }) {
+  return (
+    <Link href={href} className="flex items-center gap-3 rounded-card border border-border p-3 transition-colors hover:bg-secondary">
+      <span className="flex h-10 w-10 items-center justify-center rounded-button bg-primary/10 text-primary"><Icon className="h-5 w-5" /></span>
+      <div>
+        <p className="text-sm font-semibold">{title}</p>
+        <p className="text-xs text-muted-foreground">{desc}</p>
+      </div>
+    </Link>
   );
 }
 

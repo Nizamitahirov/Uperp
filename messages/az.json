@@ -59,6 +59,12 @@
     "roles": "Rollar",
     "settings": "Tənzimləmələr"
   },
+  "navGroup": {
+    "warehouse_supply": "Anbar & Təchizat",
+    "production": "İstehsal",
+    "sales_customer": "Satış & Müştəri",
+    "finance_admin": "Maliyyə & Sistem"
+  },
   "materials": {
     "title": "Xam Material Anbarı",
     "subtitle": "Material kataloqu, stok və maya dəyəri",

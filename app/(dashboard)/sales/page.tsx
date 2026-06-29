@@ -31,6 +31,7 @@ export default function SalesListPage() {
     <div>
       <PageHeader title="Satış Sifarişləri" subtitle="B2B/B2C sifarişlər, rezerv, faktura" action={
         <div className="flex gap-2">
+          <Button variant="outline" asChild><Link href="/quotations">Təkliflər</Link></Button>
           <Button variant="outline" asChild><Link href="/deliveries">Çatdırılmalar</Link></Button>
           {canCreate && <Button asChild><Link href="/sales/new"><Plus /> Yeni sifariş</Link></Button>}
         </div>

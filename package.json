@@ -9,7 +9,9 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "seed": "node scripts/seed.mjs"
+    "seed": "node scripts/seed.mjs",
+    "deploy:rules": "node scripts/deploy-rules.mjs",
+    "deploy:indexes": "node scripts/deploy-indexes.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

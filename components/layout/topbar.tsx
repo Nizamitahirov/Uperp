@@ -2,7 +2,9 @@
 
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { LogOut, Menu, User } from 'lucide-react';
+import Link from 'next/link';
+import { Inbox, LogOut, Menu, User } from 'lucide-react';
+import { useInbox } from '@/hooks/use-inbox';
 import { useAuth } from '@/components/providers/auth-provider';
 import { logout } from '@/lib/firebase/auth';
 import { getRoleName } from '@/lib/rbac/permissions';
@@ -45,6 +47,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
       <div className="flex items-center gap-2">
         <ThemeToggle />
         <LocaleSwitcher />
+        <InboxButton />
         <NotificationBell />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -72,5 +75,21 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
         </DropdownMenu>
       </div>
     </header>
+  );
+}
+
+function InboxButton() {
+  const { total } = useInbox();
+  return (
+    <Button variant="ghost" size="icon" asChild className="relative" aria-label="Təsdiqlər və tapşırıqlar">
+      <Link href="/approvals">
+        <Inbox />
+        {total > 0 && (
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+            {total > 9 ? '9+' : total}
+          </span>
+        )}
+      </Link>
+    </Button>
   );
 }

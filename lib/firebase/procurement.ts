@@ -5,6 +5,7 @@ import { logAudit } from './audit';
 import { allocateLandedCost } from '@/lib/costing';
 import { postGRN } from './stock';
 import { createNotification } from './notifications';
+import { dispatchWorkflow } from '@/lib/workflow/engine';
 import { createPayableFromGRN } from './finance';
 import type { GRN, POItem, PoStatus, PRItem, PRStatus, PurchaseOrder, PurchaseRequest } from '@/types';
 import type { PurchaseOrderFormValues } from '@/lib/validations';
@@ -148,6 +149,10 @@ export async function createPurchaseOrder(
 
   const ref = await addDoc(collection(getDb(), 'purchase_orders'), data);
   await logAudit({ userId: actor.uid, username: actor.username, action: 'CREATE', entityType: 'PO', entityId: ref.id });
+  await dispatchWorkflow('purchase_order.created', { poNumber, supplierName, totalAmount, totalAZN, subtotal }, {
+    collection: 'purchase_orders', entityType: 'PurchaseOrder', entityId: ref.id,
+    entityLabel: `PO ${poNumber}`, actionUrl: `/procurement/${ref.id}`, actor: { uid: actor.uid, username: actor.username },
+  });
   return ref.id;
 }
 
@@ -269,5 +274,9 @@ export async function createAndPostGRN(
   });
 
   await logAudit({ userId: actor.uid, username: actor.username, action: 'CREATE', entityType: 'GRN', entityId: grnRef.id });
+  await dispatchWorkflow('grn.received', { grnNumber, supplierName: po.supplierName, totalQuantity: grnItems.reduce((s, i) => s + i.acceptedQuantity, 0) }, {
+    entityType: 'GRN', entityId: grnRef.id, entityLabel: `GRN ${grnNumber}`,
+    actionUrl: `/procurement/grn`, actor: { uid: actor.uid, username: actor.username },
+  });
   return grnRef.id;
 }

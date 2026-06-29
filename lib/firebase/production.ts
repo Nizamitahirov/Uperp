@@ -13,6 +13,7 @@ import {
 import { getDb } from './config';
 import { nextNumber } from './counters';
 import { logAudit } from './audit';
+import { dispatchWorkflow } from '@/lib/workflow/engine';
 import { issueStock } from './stock';
 import { createNotification } from './notifications';
 import type { BOM, Product, ProductionOrder, RawMaterial } from '@/types';
@@ -112,6 +113,10 @@ export async function createProductionOrder(
 
   const ref = await addDoc(collection(getDb(), 'production_orders'), data);
   await logAudit({ userId: actor.uid, username: actor.username, action: 'CREATE', entityType: 'ProductionOrder', entityId: ref.id });
+  await dispatchWorkflow('production_order.created', { orderNumber, totalQuantity: data.totalQuantity, priority: data.priority }, {
+    collection: 'production_orders', entityType: 'ProductionOrder', entityId: ref.id,
+    entityLabel: `İstehsal ${orderNumber}`, actionUrl: `/production/${ref.id}`, actor: { uid: actor.uid, username: actor.username },
+  });
   return ref.id;
 }
 

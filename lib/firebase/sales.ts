@@ -11,6 +11,7 @@ import { getDb } from './config';
 import { nextNumber } from './counters';
 import { logAudit } from './audit';
 import { createNotification } from './notifications';
+import { dispatchWorkflow } from '@/lib/workflow/engine';
 import { VAT_RATE } from '@/lib/constants';
 import type { SalesOrder, SalesOrderItem } from '@/types';
 
@@ -71,6 +72,10 @@ export async function createSalesOrder(
     entityType: 'SalesOrder',
     entityId: ref.id,
     actionUrl: `/sales/${ref.id}`,
+  });
+  await dispatchWorkflow('sales_order.created', { ...params, ...totals, soNumber }, {
+    collection: 'sales_orders', entityType: 'SalesOrder', entityId: ref.id,
+    entityLabel: `Sifariş ${soNumber}`, actionUrl: `/sales/${ref.id}`, actor: { uid: actor.uid, username: actor.username },
   });
   return ref.id;
 }

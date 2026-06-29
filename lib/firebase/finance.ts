@@ -3,6 +3,7 @@ import { getDb } from './config';
 import { nextNumber } from './counters';
 import { logAudit } from './audit';
 import { addCashTransaction } from './cash';
+import { dispatchWorkflow } from '@/lib/workflow/engine';
 import type { ExpenseCategory, Payable, Receivable } from '@/types';
 
 interface Actor {
@@ -106,6 +107,10 @@ export async function createExpense(
     createdAt: serverTimestamp(),
   });
   await logAudit({ userId: actor.uid, username: actor.username, action: 'CREATE', entityType: 'Expense', entityId: ref.id });
+  await dispatchWorkflow('expense.submitted', { expenseNumber, amount: params.amount, category: params.category }, {
+    collection: 'expenses', entityType: 'Expense', entityId: ref.id,
+    entityLabel: `Xərc ${expenseNumber}`, actionUrl: '/finance', actor: { uid: actor.uid, username: actor.username },
+  });
   return ref.id;
 }
 

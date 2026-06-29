@@ -147,6 +147,22 @@ service cloud.firestore {
       allow read: if signedIn();
       allow write: if hasRole(['director']);
     }
+    // Təsdiq tələbləri — signed-in oxuyur/yaradır, qərarı signed-in verir
+    match /approval_requests/{id} {
+      allow read, create, update: if signedIn();
+      allow delete: if hasRole(['director']);
+    }
+    // Tapşırıqlar — signed-in oxuyur/yaradır/yeniləyir
+    match /tasks/{id} {
+      allow read, create, update: if signedIn();
+      allow delete: if hasRole(['director']);
+    }
+    // Workflow icra jurnalı
+    match /workflow_runs/{id} {
+      allow read: if hasRole(['director','accountant']);
+      allow create: if signedIn();
+      allow update, delete: if false;
+    }
 
     // ── Satış ───────────────────────────────────────────────
     match /quotations/{docId} {

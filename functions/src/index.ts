@@ -13,17 +13,22 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { defineSecret } from 'firebase-functions/params';
 
 initializeApp();
 const db = getFirestore();
 
-const GROQ_API_KEY = defineSecret('GROQ_API_KEY');
+// ── Workflow icra mühərriki (Firestore triggerləri + scheduler) ──
+export {
+  wfSalesCreated, wfSalesStatus, wfPOCreated, wfExpenseCreated, wfGrnCreated,
+  wfProductionCreated, wfCustomerCreated, wfCatalogPublished, wfProcessDelays, wfStockScan,
+} from './workflow.js';
+import { dispatchOverdueInvoice } from './workflow.js';
+
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL = 'llama-3.3-70b-versatile';
 
 // ── AI Proxy (12 §12.4) ──────────────────────────────────────
-export const aiAssistant = onCall({ secrets: [GROQ_API_KEY] }, async (req) => {
+export const aiAssistant = onCall(async (req) => {
   if (!req.auth) throw new HttpsError('unauthenticated', 'Giriş tələb olunur');
   const { prompt, useCase = 'chatbot', language = 'az', contextData } = req.data ?? {};
   if (!prompt) throw new HttpsError('invalid-argument', 'prompt tələb olunur');
@@ -37,7 +42,7 @@ export const aiAssistant = onCall({ secrets: [GROQ_API_KEY] }, async (req) => {
 
   const res = await fetch(GROQ_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROQ_API_KEY.value()}` },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.GROQ_API_KEY ?? ''}` },
     body: JSON.stringify({
       model: MODEL,
       messages: [
@@ -102,6 +107,8 @@ export const arReminders = onSchedule('every day 09:00', async () => {
         readBy: [],
         createdAt: FieldValue.serverTimestamp(),
       });
+      // invoice.overdue workflow-larını işə sal
+      await dispatchOverdueInvoice(doc.id, { ...d, status: 'overdue' });
     }
   }
 });

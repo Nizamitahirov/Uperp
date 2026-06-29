@@ -165,6 +165,10 @@ export async function dispatchWorkflow(
   entity: Record<string, unknown>,
   ctx: DispatchContext,
 ): Promise<void> {
+  // Server (Cloud Functions) workflow icrası aktivdirsə, client dispatch-i söndür
+  // ki, ikiqat icra olmasın. Functions deploy olunandan sonra Vercel-də
+  // NEXT_PUBLIC_SERVER_WORKFLOWS=1 təyin edilir.
+  if (process.env.NEXT_PUBLIC_SERVER_WORKFLOWS === '1') return;
   try {
     const matched = (await activeWorkflows()).filter((w) => w.trigger === trigger);
     for (const wf of matched) {

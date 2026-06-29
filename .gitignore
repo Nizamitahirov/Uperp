@@ -36,3 +36,8 @@ firebase-debug.log
 functions/node_modules
 functions/lib
 functions/package-lock.json
+
+# functions secrets
+functions/.env
+functions/lib/
+functions/node_modules/

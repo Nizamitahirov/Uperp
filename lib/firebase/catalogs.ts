@@ -26,15 +26,24 @@ export function listPublishedCatalogs(): Promise<Catalog[]> {
   return listDocs<Catalog>(COLLECTION, [where('status', '==', 'published')]);
 }
 
+/** undefined sahələri null-a çevirir — Firestore undefined qəbul etmir */
+function clean(input: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(input)) out[k] = v === undefined ? null : v;
+  return out;
+}
+
 export function createCatalog(input: CatalogInput): Promise<string> {
   return createDoc(COLLECTION, {
-    ...input,
+    ...clean(input as unknown as Record<string, unknown>),
     publishedAt: input.status === 'published' ? serverTimestamp() : null,
   });
 }
 
 export function updateCatalog(id: string, input: Partial<CatalogInput>): Promise<void> {
-  return updateDocById(COLLECTION, id, input as Record<string, unknown>);
+  const data = clean(input as unknown as Record<string, unknown>);
+  if (input.status) data.publishedAt = input.status === 'published' ? serverTimestamp() : null;
+  return updateDocById(COLLECTION, id, data);
 }
 
 /** Jurnalı dərc et / geri çək */

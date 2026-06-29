@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { LocaleSwitcher } from './locale-switcher';
 import { NotificationBell } from './notification-bell';
+import { ThemeToggle } from './theme-toggle';
 
 export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const t = useTranslations('common');
@@ -41,6 +42,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
       </div>
 
       <div className="flex items-center gap-2">
+        <ThemeToggle />
         <LocaleSwitcher />
         <NotificationBell />
         <DropdownMenu>

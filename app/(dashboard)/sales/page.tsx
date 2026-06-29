@@ -29,7 +29,12 @@ export default function SalesListPage() {
 
   return (
     <div>
-      <PageHeader title="Satış Sifarişləri" subtitle="B2B/B2C sifarişlər, rezerv, faktura" action={canCreate && <Button asChild><Link href="/sales/new"><Plus /> Yeni sifariş</Link></Button>} />
+      <PageHeader title="Satış Sifarişləri" subtitle="B2B/B2C sifarişlər, rezerv, faktura" action={
+        <div className="flex gap-2">
+          <Button variant="outline" asChild><Link href="/deliveries">Çatdırılmalar</Link></Button>
+          {canCreate && <Button asChild><Link href="/sales/new"><Plus /> Yeni sifariş</Link></Button>}
+        </div>
+      } />
       <Card className="rounded-card">
         {isLoading ? (
           <div className="space-y-2 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>

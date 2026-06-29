@@ -56,6 +56,16 @@ export default function SalesOrderDetailPage() {
       <div class="totals"><div><span>Ara cəm</span><span>${formatCurrency(order.subtotal, 'AZN')}</span></div><div><span>Endirim</span><span>−${formatCurrency(order.discountAmount, 'AZN')}</span></div><div><span>ƏDV (${VAT_RATE}%)</span><span>${formatCurrency(order.vatAmount, 'AZN')}</span></div><div class="bold"><span>YEKUN</span><span>${formatCurrency(order.totalAmount, 'AZN')}</span></div></div>`);
   }
 
+  function handlePackingList() {
+    if (!order) return;
+    const rows = order.items.map((it, i) => `<tr><td>${i + 1}</td><td>${it.productName} (${it.variantSku})</td><td>${it.size}/${it.grade ?? ''}</td><td class="right">${it.quantity}</td><td></td></tr>`).join('');
+    const totalQty = order.items.reduce((s, it) => s + it.quantity, 0);
+    printDocument(`Packing-${order.soNumber}`, `<div class="header"><div><h1>QABLAŞDIRMA VƏRƏQİ</h1><div class="muted">Sifariş: ${order.soNumber}</div><div class="muted">Tarix: ${formatDate(tsMillis(order.date))}</div></div><div class="muted">Müştəri:<br/><b>${order.customerName}</b><br/>${order.deliveryAddress ?? ''}</div></div>
+      <table><thead><tr><th>#</th><th>Məhsul</th><th>Ölçü/Sort</th><th>Say</th><th>✓ Yoxlanış</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="totals"><div class="bold"><span>Ümumi ədəd</span><span>${totalQty}</span></div></div>
+      <div class="sign"><span>Yığan: ____________</span><span>Yoxlayan: ____________</span></div>`);
+  }
+
   if (isLoading) return <Skeleton className="h-64 w-full" />;
   if (!order) {
     return <div><Button variant="ghost" onClick={() => router.push('/sales')}><ArrowLeft className="h-4 w-4" /> Geri</Button><p className="mt-4 text-muted-foreground">Sifariş tapılmadı.</p></div>;
@@ -72,6 +82,7 @@ export default function SalesOrderDetailPage() {
         action={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={handlePrint}><Printer className="h-4 w-4" /> Faktura</Button>
+            <Button variant="outline" onClick={handlePackingList}><Printer className="h-4 w-4" /> Packing list</Button>
             {canUpdate && order.status === 'new' && <Button onClick={() => run(() => confirmSalesOrder(order, actor), 'Təsdiqləndi və rezerv edildi')} disabled={working}>{working ? <Loader2 className="animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Təsdiqlə (rezerv)</Button>}
             {canUpdate && ['confirmed', 'preparing', 'shipped'].includes(order.status) && <Button onClick={() => run(() => deliverSalesOrder(order, actor), 'Çatdırıldı, faktura yaradıldı')} disabled={working}><Truck className="h-4 w-4" /> Çatdır</Button>}
             {canUpdate && !['delivered', 'cancelled', 'returned'].includes(order.status) && <Button variant="outline" className="text-danger" onClick={() => run(() => cancelSalesOrder(order, actor), 'Ləğv edildi')} disabled={working}><XCircle className="h-4 w-4" /> Ləğv et</Button>}

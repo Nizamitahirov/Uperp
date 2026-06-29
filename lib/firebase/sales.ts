@@ -177,6 +177,19 @@ export async function deliverSalesOrder(order: SalesOrder, actor: Actor): Promis
     }
   });
 
+  // Çatdırılma sənədi (08 §8.4)
+  const deliveryNumber = await nextNumber('DLV');
+  await addDoc(collection(db, 'deliveries'), {
+    deliveryNumber,
+    salesOrderId: order.id,
+    soNumber: order.soNumber,
+    customerName: order.customerName,
+    date: serverTimestamp(),
+    packagesCount: order.items.reduce((s, i) => s + i.quantity, 0),
+    status: 'delivered',
+    createdAt: serverTimestamp(),
+  });
+
   await updateDoc(doc(db, 'sales_orders', order.id), {
     status: 'delivered',
     invoiceId: invoiceRef.id,

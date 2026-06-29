@@ -1,0 +1,64 @@
+'use client';
+
+import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
+import { orderBy } from 'firebase/firestore';
+import { ArrowLeft } from 'lucide-react';
+import { listDocs } from '@/lib/firebase/firestore';
+import type { Delivery } from '@/types';
+import { formatDate } from '@/lib/utils/format';
+import { PageHeader } from '@/components/shared/page-header';
+import { EmptyState } from '@/components/shared/empty-state';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+
+const STATUS: Record<string, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive' }> = {
+  preparing: { label: 'Hazırlanır', variant: 'warning' },
+  in_transit: { label: 'Yolda', variant: 'default' },
+  delivered: { label: 'Çatdırılıb', variant: 'success' },
+  returned: { label: 'Qaytarılıb', variant: 'destructive' },
+};
+
+export default function DeliveriesPage() {
+  const { data: rows = [], isLoading } = useQuery({
+    queryKey: ['deliveries'],
+    queryFn: () => listDocs<Delivery>('deliveries', [orderBy('createdAt', 'desc')]),
+  });
+  const ms = (t: unknown) => (t as { toMillis?: () => number })?.toMillis?.();
+
+  return (
+    <div>
+      <Button variant="ghost" className="mb-2" asChild><Link href="/sales"><ArrowLeft className="h-4 w-4" /> Satış</Link></Button>
+      <PageHeader title="Çatdırılmalar" subtitle="Sifariş çatdırılma sənədləri" />
+      <Card className="rounded-card">
+        {isLoading ? (
+          <div className="space-y-2 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
+        ) : rows.length === 0 ? (
+          <EmptyState title="Çatdırılma yoxdur" description="Sifariş çatdırılanda burada görünəcək" />
+        ) : (
+          <Table>
+            <TableHeader><TableRow><TableHead>№</TableHead><TableHead>Sifariş</TableHead><TableHead>Müştəri</TableHead><TableHead>Tarix</TableHead><TableHead className="text-right">Yeşik/ədəd</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {rows.map((d) => {
+                const m = STATUS[d.status] ?? STATUS.preparing;
+                return (
+                  <TableRow key={d.id}>
+                    <TableCell className="font-mono text-xs">{d.deliveryNumber}</TableCell>
+                    <TableCell><Link href={`/sales/${d.salesOrderId}`} className="hover:underline">{d.soNumber}</Link></TableCell>
+                    <TableCell>{d.customerName}</TableCell>
+                    <TableCell>{formatDate(ms(d.date))}</TableCell>
+                    <TableCell className="text-right">{d.packagesCount ?? '—'}</TableCell>
+                    <TableCell><Badge variant={m.variant}>{m.label}</Badge></TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
+    </div>
+  );
+}

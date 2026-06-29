@@ -568,6 +568,21 @@ export interface Quotation {
   createdAt?: Timestamp | null;
 }
 
+export type DeliveryStatus = 'preparing' | 'in_transit' | 'delivered' | 'returned';
+
+export interface Delivery {
+  id: string;
+  deliveryNumber: string;
+  salesOrderId: string;
+  soNumber?: string;
+  customerName?: string;
+  date?: Timestamp | null;
+  courier?: string;
+  packagesCount?: number;
+  status: DeliveryStatus;
+  createdAt?: Timestamp | null;
+}
+
 export interface POSItem {
   variantSku: string;
   finishedGoodId: string;

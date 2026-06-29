@@ -27,6 +27,22 @@ npm run build                # production build
 
 > ⚠️ `.env.local` git-ə commit OLUNMUR (`.gitignore`-dadır). Sirləri orada saxla.
 
+## 🌱 İlk quraşdırma (Bootstrap)
+
+1. **Firebase Console → Authentication → Get started** → **Email/Password** və **Google** provayderlərini aktiv et.
+2. **Firestore Database** yarat (production mode).
+3. İlk direktor hesabını və default parametrləri yarat:
+   ```bash
+   npm run seed
+   ```
+   Bu skript `director@uperp.az` / `Director@2026` hesabını (Auth + Firestore profil,
+   `role: director`), `settings/global`, default kassa və valyuta məzənnələrini yaradır.
+   Email/parol və adı `SEED_DIRECTOR_EMAIL`, `SEED_DIRECTOR_PASSWORD` env ilə dəyişə bilərsən.
+4. Qaydaları və indeksləri deploy et:
+   ```bash
+   firebase deploy --only firestore:rules,firestore:indexes,storage
+   ```
+
 ---
 
 

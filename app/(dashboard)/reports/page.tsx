@@ -3,12 +3,14 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
-import { Loader2, PackageSearch } from 'lucide-react';
+import { Loader2, PackageSearch, Sparkles } from 'lucide-react';
 import { listDocs } from '@/lib/firebase/firestore';
 import { checkOverstock } from '@/lib/firebase/notifications';
+import { aiPrompt } from '@/lib/ai/client';
 import { useAuth } from '@/components/providers/auth-provider';
-import type { SalesOrder, Expense, FinishedGoodStock, RawMaterial } from '@/types';
-import { EXPENSE_CATEGORIES, VAT_RATE } from '@/lib/constants';
+import type { SalesOrder, Expense, FinishedGoodStock, RawMaterial, Receivable, Payable, Customer } from '@/types';
+import { EXPENSE_CATEGORIES, VAT_RATE, CUSTOMER_SEGMENTS } from '@/lib/constants';
+import { buildAging } from '@/lib/utils/aging';
 import { getStockStatus } from '@/lib/utils/stock';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
@@ -24,17 +26,22 @@ const COLORS = ['#2563eb', '#16a34a', '#eab308', '#dc2626', '#9333ea', '#0891b2'
 export default function ReportsPage() {
   const { profile } = useAuth();
   const [checking, setChecking] = useState(false);
+  const [insight, setInsight] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['reports-data'],
     queryFn: async () => {
-      const [sales, expenses, finished, materials] = await Promise.all([
+      const [sales, expenses, finished, materials, receivables, payables, customers] = await Promise.all([
         listDocs<SalesOrder>('sales_orders', []),
         listDocs<Expense>('expenses', []),
         listDocs<FinishedGoodStock>('finished_goods', []),
         listDocs<RawMaterial>('raw_materials', []),
+        listDocs<Receivable>('receivables', []),
+        listDocs<Payable>('payables', []),
+        listDocs<Customer>('customers', []),
       ]);
-      return { sales, expenses, finished, materials };
+      return { sales, expenses, finished, materials, receivables, payables, customers };
     },
   });
 
@@ -86,6 +93,47 @@ export default function ReportsPage() {
     return { rawValue, fgValue, critical, overstock };
   }, [data]);
 
+  const arAging = useMemo(() => buildAging((data?.receivables ?? []).map((r) => ({ id: r.id, name: r.customerName ?? r.invoiceNumber ?? r.id, reference: r.invoiceNumber, balance: r.balance, dueDate: r.dueDate }))), [data]);
+  const apAging = useMemo(() => buildAging((data?.payables ?? []).map((p) => ({ id: p.id, name: p.supplierName ?? p.invoiceNumber ?? p.id, reference: p.invoiceNumber, balance: p.balance, dueDate: p.dueDate }))), [data]);
+
+  const customers = useMemo(() => {
+    if (!data) return null;
+    const rev = new Map<string, number>();
+    const orders = new Map<string, number>();
+    for (const s of data.sales.filter((x) => x.status === 'delivered')) {
+      const key = s.customerName ?? s.customerId;
+      rev.set(key, (rev.get(key) ?? 0) + s.totalAmount);
+      orders.set(key, (orders.get(key) ?? 0) + 1);
+    }
+    const top = Array.from(rev.entries())
+      .map(([name, revenue]) => ({ name, revenue, orders: orders.get(name) ?? 0, aov: revenue / (orders.get(name) || 1) }))
+      .sort((a, b) => b.revenue - a.revenue);
+    const segMap = new Map<string, number>();
+    for (const c of data.customers) {
+      const label = CUSTOMER_SEGMENTS[c.segment]?.label ?? c.segment;
+      segMap.set(label, (segMap.get(label) ?? 0) + 1);
+    }
+    const segments = Array.from(segMap.entries()).map(([name, value]) => ({ name, value }));
+    const arByCustomer = new Map<string, number>();
+    for (const r of data.receivables) arByCustomer.set(r.customerName ?? r.customerId, (arByCustomer.get(r.customerName ?? r.customerId) ?? 0) + (r.balance ?? 0));
+    return { top: top.slice(0, 12), segments, total: data.customers.length, withBalance: Array.from(arByCustomer.values()).filter((v) => v > 0.005).length };
+  }, [data]);
+
+  async function generateInsight() {
+    if (!pnl) return;
+    setAiLoading(true);
+    try {
+      const text = await aiPrompt(
+        `Cins şalvar istehsalı ERP-i üçün maliyyə/satış hesabatının qısa analitik xülasəsini yaz (3-4 cümlə, Azərbaycan dili, anomaliya və tendensiya qeyd et, tövsiyə ver). Gəlir: ${pnl.revenue.toFixed(0)} AZN, COGS: ${pnl.cogs.toFixed(0)} AZN, ümumi marja: ${pnl.grossMargin.toFixed(1)}%, xalis mənfəət: ${pnl.netProfit.toFixed(0)} AZN, xərclər: ${pnl.totalExpenses.toFixed(0)} AZN, vaxtı keçmiş debitor: ${arAging.overdueTotal.toFixed(0)} AZN.`,
+      );
+      setInsight(text);
+    } catch (e) {
+      toast.error('AI analiz alınmadı', e instanceof Error ? e.message : undefined);
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
   async function runOverstock() {
     if (!data) return;
     setChecking(true);
@@ -99,14 +147,28 @@ export default function ReportsPage() {
 
   return (
     <div>
-      <PageHeader title="Hesabatlar və Analitika" subtitle="P&L, satış, inventar" action={
-        <Button variant="outline" onClick={runOverstock} disabled={checking}>{checking ? <Loader2 className="animate-spin" /> : <PackageSearch className="h-4 w-4" />} Overstock yoxla</Button>
+      <PageHeader title="Hesabatlar və Analitika" subtitle="P&L, AR/AP aging, satış, müştəri, inventar" action={
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={generateInsight} disabled={aiLoading}>{aiLoading ? <Loader2 className="animate-spin" /> : <Sparkles className="h-4 w-4" />} AI analiz</Button>
+          <Button variant="outline" onClick={runOverstock} disabled={checking}>{checking ? <Loader2 className="animate-spin" /> : <PackageSearch className="h-4 w-4" />} Overstock yoxla</Button>
+        </div>
       } />
+
+      {insight && (
+        <Card className="mb-4 rounded-card border-primary/30 bg-primary/5">
+          <CardContent className="flex gap-3 p-4">
+            <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <p className="text-sm leading-relaxed">{insight}</p>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="finance">
         <TabsList>
           <TabsTrigger value="finance">Maliyyə (P&L)</TabsTrigger>
+          <TabsTrigger value="aging">AR/AP Aging</TabsTrigger>
           <TabsTrigger value="sales">Satış</TabsTrigger>
+          <TabsTrigger value="customers">Müştəri</TabsTrigger>
           <TabsTrigger value="inventory">İnventar</TabsTrigger>
         </TabsList>
 
@@ -133,6 +195,51 @@ export default function ReportsPage() {
                         {expenseByCategory.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                       </Pie>
                       <Tooltip formatter={(v: number) => formatCurrency(v, 'AZN')} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="aging">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <AgingCard title="Debitor (AR) aging — müştəri borcları" summary={arAging} />
+            <AgingCard title="Kreditor (AP) aging — təchizatçı borcları" summary={apAging} />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="customers">
+          <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <Kpi label="Ümumi müştəri" value={String(customers?.total ?? 0)} />
+            <Kpi label="Borclu müştəri (AR)" value={String(customers?.withBalance ?? 0)} />
+            <Kpi label="Aktiv alıcı" value={String(customers?.top.length ?? 0)} />
+            <Kpi label="Top müştəri gəliri" value={formatCurrency(customers?.top[0]?.revenue ?? 0, 'AZN')} />
+          </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <Card className="rounded-card lg:col-span-2">
+              <CardHeader><CardTitle className="text-base">Top müştərilər (gəlir / sifariş / orta çek)</CardTitle></CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader><TableRow><TableHead>Müştəri</TableHead><TableHead className="text-right">Sifariş</TableHead><TableHead className="text-right">Orta çek</TableHead><TableHead className="text-right">Gəlir</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {(customers?.top ?? []).map((c) => <TableRow key={c.name}><TableCell className="font-medium">{c.name}</TableCell><TableCell className="text-right">{formatNumber(c.orders, 0)}</TableCell><TableCell className="text-right">{formatCurrency(c.aov, 'AZN')}</TableCell><TableCell className="text-right">{formatCurrency(c.revenue, 'AZN')}</TableCell></TableRow>)}
+                    {(customers?.top.length ?? 0) === 0 && <TableRow><TableCell colSpan={4} className="py-8 text-center text-muted-foreground">Satış yoxdur</TableCell></TableRow>}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+            <Card className="rounded-card">
+              <CardHeader><CardTitle className="text-base">Seqment üzrə</CardTitle></CardHeader>
+              <CardContent>
+                {(customers?.segments.length ?? 0) === 0 ? <p className="py-16 text-center text-sm text-muted-foreground">Müştəri yoxdur</p> : (
+                  <ResponsiveContainer width="100%" height={240}>
+                    <PieChart>
+                      <Pie data={customers?.segments} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                        {(customers?.segments ?? []).map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip />
                     </PieChart>
                   </ResponsiveContainer>
                 )}
@@ -196,4 +303,40 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
 }
 function Kpi({ label, value }: { label: string; value: string }) {
   return <Card className="rounded-card"><CardContent className="p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="text-xl font-bold">{value}</p></CardContent></Card>;
+}
+
+function AgingCard({ title, summary }: { title: string; summary: ReturnType<typeof buildAging> }) {
+  return (
+    <Card className="rounded-card">
+      <CardHeader>
+        <CardTitle className="text-base">{title}</CardTitle>
+        <div className="flex items-baseline gap-3 pt-1">
+          <span className="text-2xl font-bold">{formatCurrency(summary.total, 'AZN')}</span>
+          {summary.overdueTotal > 0 && <span className="text-xs text-danger">vaxtı keçmiş: {formatCurrency(summary.overdueTotal, 'AZN')}</span>}
+        </div>
+      </CardHeader>
+      <CardContent>
+        <ResponsiveContainer width="100%" height={160}>
+          <BarChart data={summary.buckets}>
+            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+            <XAxis dataKey="name" fontSize={11} /><YAxis fontSize={11} />
+            <Tooltip formatter={(v: number) => formatCurrency(v, 'AZN')} />
+            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+              {summary.buckets.map((b, i) => <Cell key={i} fill={b.name.includes('90') ? '#dc2626' : b.name.includes('61') ? '#eab308' : '#2563eb'} />)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+        <div className="mt-2 max-h-48 space-y-1 overflow-y-auto">
+          {summary.rows.slice(0, 12).map((r) => (
+            <div key={r.id} className="flex items-center justify-between border-b border-border/50 py-1 text-sm last:border-0">
+              <span className="min-w-0 flex-1 truncate font-medium">{r.name}</span>
+              <span className={`shrink-0 px-2 text-xs ${r.daysOverdue > 60 ? 'text-danger' : r.daysOverdue > 0 ? 'text-warning' : 'text-muted-foreground'}`}>{r.daysOverdue > 0 ? `${r.daysOverdue} gün` : 'cari'}</span>
+              <span className="shrink-0 text-right tnum">{formatCurrency(r.balance, 'AZN')}</span>
+            </div>
+          ))}
+          {summary.rows.length === 0 && <p className="py-6 text-center text-sm text-success">Açıq borc yoxdur 🟢</p>}
+        </div>
+      </CardContent>
+    </Card>
+  );
 }

@@ -6,7 +6,7 @@ import { allocateLandedCost } from '@/lib/costing';
 import { postGRN } from './stock';
 import { createNotification } from './notifications';
 import { createPayableFromGRN } from './finance';
-import type { GRN, POItem, PoStatus, PurchaseOrder } from '@/types';
+import type { GRN, POItem, PoStatus, PRItem, PRStatus, PurchaseOrder, PurchaseRequest } from '@/types';
 import type { PurchaseOrderFormValues } from '@/lib/validations';
 
 interface Actor {
@@ -17,6 +17,77 @@ interface Actor {
 /** PO sətir cəmini hesablayır (endirimlə) */
 export function lineTotal(quantity: number, unitPrice: number, discount = 0): number {
   return quantity * unitPrice * (1 - (discount || 0) / 100);
+}
+
+// ── Purchase Request (05 §5.2) ───────────────────────────────
+export async function createPurchaseRequest(
+  params: {
+    priority: PurchaseRequest['priority'];
+    reason: PurchaseRequest['reason'];
+    items: PRItem[];
+    suggestedSupplierId?: string;
+    suggestedSupplierName?: string;
+    notes?: string;
+    submit?: boolean;
+  },
+  actor: Actor,
+): Promise<string> {
+  const prNumber = await nextNumber('PR');
+  const totalEstimated = params.items.reduce((s, i) => s + i.quantity * i.estimatedPrice, 0);
+  const ref = await addDoc(collection(getDb(), 'purchase_requests'), {
+    prNumber,
+    requestedDate: serverTimestamp(),
+    priority: params.priority,
+    reason: params.reason,
+    suggestedSupplierId: params.suggestedSupplierId ?? null,
+    suggestedSupplierName: params.suggestedSupplierName ?? null,
+    items: params.items,
+    totalEstimated,
+    status: params.submit ? 'pending_approval' : 'draft',
+    notes: params.notes ?? null,
+    createdBy: actor.uid,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  await logAudit({ userId: actor.uid, username: actor.username, action: 'CREATE', entityType: 'PR', entityId: ref.id });
+  return ref.id;
+}
+
+export async function updatePRStatus(prId: string, status: PRStatus, actor: Actor): Promise<void> {
+  await updateDoc(doc(getDb(), 'purchase_requests', prId), { status, updatedAt: serverTimestamp() });
+  await logAudit({
+    userId: actor.uid,
+    username: actor.username,
+    action: status === 'approved' ? 'APPROVE' : 'UPDATE',
+    entityType: 'PR',
+    entityId: prId,
+  });
+}
+
+/** Təsdiqlənmiş PR-i Purchase Order-a çevirir */
+export async function convertPRtoPO(pr: PurchaseRequest, supplierName: string, actor: Actor): Promise<string> {
+  const values: PurchaseOrderFormValues = {
+    supplierId: pr.suggestedSupplierId ?? '',
+    items: pr.items.map((i) => ({
+      materialId: i.materialId,
+      materialName: i.materialName,
+      materialCode: i.materialCode,
+      unit: i.unit,
+      quantity: i.quantity,
+      unitPrice: i.estimatedPrice,
+      discount: 0,
+    })),
+    customsFee: 0,
+    shippingFee: 0,
+    insuranceFee: 0,
+    otherFees: 0,
+    currency: 'AZN',
+    exchangeRate: 1,
+    landedCostAllocation: 'value',
+  };
+  const poId = await createPurchaseOrder(values, supplierName, actor);
+  await updateDoc(doc(getDb(), 'purchase_requests', pr.id), { status: 'converted_to_po', convertedPoId: poId, updatedAt: serverTimestamp() });
+  return poId;
 }
 
 /** PO maliyyə yekunlarını hesablayır */

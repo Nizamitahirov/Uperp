@@ -151,6 +151,36 @@ export interface CostLayer {
 }
 
 // ── Satınalma (05) ──────────────────────────────────────────
+export type PRStatus = 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'converted_to_po';
+
+export interface PRItem {
+  materialId: string;
+  materialName: string;
+  materialCode?: string;
+  unit: string;
+  quantity: number;
+  estimatedPrice: number;
+}
+
+export interface PurchaseRequest {
+  id: string;
+  prNumber: string;
+  requestedDate?: Timestamp | null;
+  requiredDate?: Timestamp | null;
+  priority: 'normal' | 'high' | 'urgent';
+  reason: 'low_stock' | 'production_plan' | 'new_product' | 'manual';
+  suggestedSupplierId?: string;
+  suggestedSupplierName?: string;
+  items: PRItem[];
+  totalEstimated: number;
+  status: PRStatus;
+  convertedPoId?: string;
+  notes?: string;
+  createdBy?: string;
+  createdAt?: Timestamp | null;
+  updatedAt?: Timestamp | null;
+}
+
 export type PoStatus =
   | 'draft'
   | 'approved'

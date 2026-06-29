@@ -49,6 +49,11 @@ export default function ProcurementPage() {
         action={
           <div className="flex gap-2">
             <Button variant="outline" asChild>
+              <Link href="/procurement/pr">
+                <FileInput className="h-4 w-4" /> PR-lər
+              </Link>
+            </Button>
+            <Button variant="outline" asChild>
               <Link href="/procurement/grn">
                 <FileInput className="h-4 w-4" /> GRN-lər
               </Link>

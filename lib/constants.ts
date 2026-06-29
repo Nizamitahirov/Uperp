@@ -38,6 +38,23 @@ export const PO_STATUS_META: Record<PoStatus, { label: string; variant: 'default
 /** Valyutalar */
 export const CURRENCIES = ['AZN', 'USD', 'EUR', 'TRY', 'CNY'] as const;
 
+import type { PRStatus } from '@/types';
+
+export const PR_STATUS_META: Record<PRStatus, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive' }> = {
+  draft: { label: 'Qaralama', variant: 'secondary' },
+  pending_approval: { label: 'Təsdiq gözləyir', variant: 'warning' },
+  approved: { label: 'Təsdiqlənib', variant: 'success' },
+  rejected: { label: 'Rədd edilib', variant: 'destructive' },
+  converted_to_po: { label: 'PO-ya çevrilib', variant: 'default' },
+};
+
+export const PR_REASONS: Record<string, string> = {
+  low_stock: 'Aşağı stok',
+  production_plan: 'İstehsal planı',
+  new_product: 'Yeni məhsul',
+  manual: 'Əl ilə',
+};
+
 import type {
   MovementType, WashType, ProductFit, ProductionStatus, WashingStatus, BOMStatus,
   CustomerSegment, CustomerType, SalesOrderStatus, ExpenseCategory, ARAPStatus,

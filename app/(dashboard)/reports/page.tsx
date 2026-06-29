@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Loader2, PackageSearch, Sparkles } from 'lucide-react';
 import { listDocs } from '@/lib/firebase/firestore';
 import { checkOverstock } from '@/lib/firebase/notifications';
@@ -12,6 +12,8 @@ import type { SalesOrder, Expense, FinishedGoodStock, RawMaterial, Receivable, P
 import { EXPENSE_CATEGORIES, VAT_RATE, CUSTOMER_SEGMENTS } from '@/lib/constants';
 import { buildAging } from '@/lib/utils/aging';
 import { getStockStatus } from '@/lib/utils/stock';
+import { ChartCard } from '@/components/charts/chart-card';
+import { CHART_COLORS } from '@/components/charts/palette';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
@@ -21,7 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/components/ui/toast';
 
-const COLORS = ['#2563eb', '#16a34a', '#eab308', '#dc2626', '#9333ea', '#0891b2'];
+const COLORS = CHART_COLORS;
 
 export default function ReportsPage() {
   const { profile } = useAuth();
@@ -185,21 +187,19 @@ export default function ReportsPage() {
                 <div className="mt-2 border-t pt-2 text-xs text-muted-foreground">Toplanmış ƏDV ({VAT_RATE}%): {formatCurrency(pnl.vatCollected, 'AZN')}</div>
               </CardContent>
             </Card>
-            <Card className="rounded-card">
-              <CardHeader><CardTitle className="text-base">Xərclər (kateqoriya üzrə)</CardTitle></CardHeader>
-              <CardContent>
-                {expenseByCategory.length === 0 ? <p className="py-16 text-center text-sm text-muted-foreground">Xərc yoxdur</p> : (
-                  <ResponsiveContainer width="100%" height={240}>
-                    <PieChart>
-                      <Pie data={expenseByCategory} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                        {expenseByCategory.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                      </Pie>
-                      <Tooltip formatter={(v: number) => formatCurrency(v, 'AZN')} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-              </CardContent>
-            </Card>
+            <ChartCard title="Xərclər (kateqoriya üzrə)" type="donut" data={expenseByCategory} context="AZN, xərc kateqoriyaları">
+              {expenseByCategory.length === 0 ? <p className="py-16 text-center text-sm text-muted-foreground">Xərc yoxdur</p> : (
+                <ResponsiveContainer width="100%" height={240}>
+                  <PieChart>
+                    <Pie data={expenseByCategory} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3}>
+                      {expenseByCategory.map((_, i) => <Cell key={i} stroke="transparent" fill={COLORS[i % COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip formatter={(v: number) => formatCurrency(v, 'AZN')} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </ChartCard>
           </div>
         </TabsContent>
 
@@ -230,35 +230,33 @@ export default function ReportsPage() {
                 </Table>
               </CardContent>
             </Card>
-            <Card className="rounded-card">
-              <CardHeader><CardTitle className="text-base">Seqment üzrə</CardTitle></CardHeader>
-              <CardContent>
-                {(customers?.segments.length ?? 0) === 0 ? <p className="py-16 text-center text-sm text-muted-foreground">Müştəri yoxdur</p> : (
-                  <ResponsiveContainer width="100%" height={240}>
-                    <PieChart>
-                      <Pie data={customers?.segments} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                        {(customers?.segments ?? []).map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-              </CardContent>
-            </Card>
+            <ChartCard title="Seqment üzrə" type="donut" data={customers?.segments ?? []} context="müştəri seqmentləri sayı">
+              {(customers?.segments.length ?? 0) === 0 ? <p className="py-16 text-center text-sm text-muted-foreground">Müştəri yoxdur</p> : (
+                <ResponsiveContainer width="100%" height={240}>
+                  <PieChart>
+                    <Pie data={customers?.segments} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={82} paddingAngle={3}>
+                      {(customers?.segments ?? []).map((_, i) => <Cell key={i} stroke="transparent" fill={COLORS[i % COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip /><Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </ChartCard>
           </div>
         </TabsContent>
 
         <TabsContent value="sales">
-          <Card className="mb-4 rounded-card">
-            <CardHeader><CardTitle className="text-base">Kanal üzrə satış</CardTitle></CardHeader>
-            <CardContent>
+          <div className="mb-4">
+            <ChartCard title="Kanal üzrə satış" type="column" data={salesByChannel} context="AZN, satış kanalları">
               {salesByChannel.length === 0 ? <p className="py-12 text-center text-sm text-muted-foreground">Satış yoxdur</p> : (
                 <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={salesByChannel}><CartesianGrid strokeDasharray="3 3" className="stroke-muted" /><XAxis dataKey="name" fontSize={12} /><YAxis fontSize={12} /><Tooltip formatter={(v: number) => formatCurrency(v, 'AZN')} /><Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} /></BarChart>
+                  <BarChart data={salesByChannel}><CartesianGrid strokeDasharray="3 3" className="stroke-muted" /><XAxis dataKey="name" fontSize={12} /><YAxis fontSize={12} /><Tooltip formatter={(v: number) => formatCurrency(v, 'AZN')} />
+                    <Bar dataKey="value" radius={[6, 6, 0, 0]}>{salesByChannel.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Bar>
+                  </BarChart>
                 </ResponsiveContainer>
               )}
-            </CardContent>
-          </Card>
+            </ChartCard>
+          </div>
           <Card className="rounded-card">
             <CardHeader><CardTitle className="text-base">Məhsul üzrə satış</CardTitle></CardHeader>
             <CardContent className="p-0">
@@ -307,15 +305,12 @@ function Kpi({ label, value }: { label: string; value: string }) {
 
 function AgingCard({ title, summary }: { title: string; summary: ReturnType<typeof buildAging> }) {
   return (
-    <Card className="rounded-card">
-      <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
-        <div className="flex items-baseline gap-3 pt-1">
-          <span className="text-2xl font-bold">{formatCurrency(summary.total, 'AZN')}</span>
-          {summary.overdueTotal > 0 && <span className="text-xs text-danger">vaxtı keçmiş: {formatCurrency(summary.overdueTotal, 'AZN')}</span>}
-        </div>
-      </CardHeader>
-      <CardContent>
+    <ChartCard title={title} type="aging bar" data={summary.buckets} context="AZN, yaş qrupları (cari/30/60/90+)">
+      <div className="mb-2 flex items-baseline gap-3">
+        <span className="text-2xl font-bold">{formatCurrency(summary.total, 'AZN')}</span>
+        {summary.overdueTotal > 0 && <span className="text-xs text-danger">vaxtı keçmiş: {formatCurrency(summary.overdueTotal, 'AZN')}</span>}
+      </div>
+      <div>
         <ResponsiveContainer width="100%" height={160}>
           <BarChart data={summary.buckets}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -336,7 +331,7 @@ function AgingCard({ title, summary }: { title: string; summary: ReturnType<type
           ))}
           {summary.rows.length === 0 && <p className="py-6 text-center text-sm text-success">Açıq borc yoxdur 🟢</p>}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </ChartCard>
   );
 }

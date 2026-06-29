@@ -8,10 +8,15 @@ const TEXT_MODEL = 'llama-3.3-70b-versatile';
 const VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
 
 interface GenerateBody {
-  task: 'product_description' | 'summary' | 'custom';
+  task: 'product_description' | 'summary' | 'custom' | 'chart_explain';
   prompt?: string;
   attributes?: Record<string, unknown>;
   imageUrl?: string;
+  // chart_explain üçün
+  chartTitle?: string;
+  chartType?: string;
+  chartData?: unknown;
+  context?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -28,10 +33,22 @@ export async function POST(req: NextRequest) {
   }
 
   const isProductDesc = body.task === 'product_description';
+  const isChartExplain = body.task === 'chart_explain';
   const useVision = isProductDesc && !!body.imageUrl;
+  const wantsJson = isProductDesc || isChartExplain;
 
   let messages: unknown[];
-  if (isProductDesc) {
+  if (isChartExplain) {
+    const sys =
+      'Sən təcrübəli biznes data analitikisən (cins/denim istehsalı ERP-i). Sənə qrafikin başlığı və datası verilir. Sən qısa, dəqiq, rəqəmlərə əsaslanan izah yazırsan: əsas tendensiya, ən yüksək/aşağı nöqtə, anomaliya və 1 praktiki tövsiyə. 2-4 cümlə. Cavabı DƏQİQ bu JSON formatında ver: {"az": "...", "en": "..."}. az = Azərbaycan dili, en = English. Başqa heç nə yazma.';
+    messages = [
+      { role: 'system', content: sys },
+      {
+        role: 'user',
+        content: `Qrafik başlığı: "${body.chartTitle ?? ''}" (tip: ${body.chartType ?? 'chart'}).${body.context ? ` Kontekst: ${body.context}.` : ''} Data (JSON): ${JSON.stringify(body.chartData ?? []).slice(0, 3000)}. Bu datanı təhlil et və izah ver.`,
+      },
+    ];
+  } else if (isProductDesc) {
     const a = body.attributes ?? {};
     const sys =
       'Sən moda jurnalı tonunda yazan peşəkar marketinq kopiraytersən. Cins (denim) məhsulları üçün cəlbedici, qısa təsvir yazırsan. Cavabı dəqiq bu JSON formatında ver: {"az": "...", "en": "..."}. Başqa heç nə yazma.';
@@ -79,7 +96,7 @@ export async function POST(req: NextRequest) {
     const data = await res.json();
     const content: string = data.choices?.[0]?.message?.content ?? '';
 
-    if (isProductDesc) {
+    if (wantsJson) {
       try {
         const match = content.match(/\{[\s\S]*\}/);
         const parsed = match ? JSON.parse(match[0]) : { az: content, en: '' };

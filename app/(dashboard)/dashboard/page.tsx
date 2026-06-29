@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import {
-  ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
+  ResponsiveContainer, ComposedChart, Line, Bar, BarChart, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
+  PieChart, Pie, Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
 } from 'recharts';
 import {
   TrendingUp, Wallet, Package, Factory, ShoppingCart, AlertTriangle, Sparkles, Loader2,
@@ -12,6 +13,8 @@ import {
 } from 'lucide-react';
 import { listDocs } from '@/lib/firebase/firestore';
 import { aiPrompt } from '@/lib/ai/client';
+import { ChartCard } from '@/components/charts/chart-card';
+import { CHART_COLORS, PRIMARY } from '@/components/charts/palette';
 import { useAuth } from '@/components/providers/auth-provider';
 import { getRoleName } from '@/lib/rbac/permissions';
 import type {
@@ -107,6 +110,7 @@ export default function DashboardPage() {
     };
   }, [data]);
 
+  // Kombo qrafik — aylıq satış (sütun) + kümulyativ (xətt)
   const salesTrend = useMemo(() => {
     if (!data) return [];
     const buckets = new Map<string, number>();
@@ -120,7 +124,11 @@ export default function DashboardPage() {
       const key = `${d.getFullYear()}-${d.getMonth()}`;
       if (buckets.has(key)) buckets.set(key, (buckets.get(key) ?? 0) + s.totalAmount);
     }
-    return Array.from(buckets.entries()).map(([k, v]) => ({ month: MONTHS_AZ[Number(k.split('-')[1])], value: Math.round(v) }));
+    let cum = 0;
+    return Array.from(buckets.entries()).map(([k, v]) => {
+      cum += v;
+      return { month: MONTHS_AZ[Number(k.split('-')[1])], value: Math.round(v), cumulative: Math.round(cum) };
+    });
   }, [data]);
 
   const topProducts = useMemo(() => {
@@ -129,6 +137,32 @@ export default function DashboardPage() {
     for (const s of data.sales) for (const it of s.items ?? []) map.set(it.productName, (map.get(it.productName) ?? 0) + it.quantity);
     return Array.from(map.entries()).map(([name, qty]) => ({ name: name.slice(0, 14), qty })).sort((a, b) => b.qty - a.qty).slice(0, 6);
   }, [data]);
+
+  // Donut — kanal üzrə satış
+  const channelData = useMemo(() => {
+    if (!data) return [];
+    const labels: Record<string, string> = { online: 'Onlayn', wholesale: 'Topdan', retail: 'Pərakəndə', pos: 'POS', b2b: 'B2B', b2c: 'B2C' };
+    const map = new Map<string, number>();
+    for (const s of data.sales) map.set(labels[s.channel] ?? s.channel, (map.get(labels[s.channel] ?? s.channel) ?? 0) + s.totalAmount);
+    return Array.from(map.entries()).map(([name, value]) => ({ name, value: Math.round(value) }));
+  }, [data]);
+
+  // Radar — ölçü aralığı üzrə satış (ədəd)
+  const sizeData = useMemo(() => {
+    if (!data) return [];
+    const map = new Map<string, number>();
+    for (const s of data.sales) for (const it of s.items ?? []) { if (it.size) map.set(it.size, (map.get(it.size) ?? 0) + it.quantity); }
+    return Array.from(map.entries()).map(([size, qty]) => ({ size, qty })).sort((a, b) => a.size.localeCompare(b.size));
+  }, [data]);
+
+  // Donut — anbar tərkibi (xam vs hazır)
+  const inventoryMix = useMemo(() => {
+    if (!m) return [];
+    return [
+      { name: 'Xam material', value: Math.round(m.rawValue) },
+      { name: 'Hazır məhsul', value: Math.round(m.fgValue) },
+    ].filter((x) => x.value > 0);
+  }, [m]);
 
   async function generateInsight() {
     if (!m) return;
@@ -165,36 +199,90 @@ export default function DashboardPage() {
             <RoleKpis role={role} m={m} />
           </div>
 
-          {/* ── Qrafiklər (direktor + satış) ── */}
+          {/* ── Qrafiklər (direktor + satış) — zəngin tiplər + AI izah ── */}
           {showCharts && (
             <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <Card className="rounded-card">
-                <CardHeader><CardTitle className="text-base">Satış trendi (6 ay)</CardTitle></CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={240}>
-                    <LineChart data={salesTrend}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis dataKey="month" fontSize={12} /><YAxis fontSize={12} />
+              {/* Kombo: aylıq satış (sütun) + kümulyativ (xətt) */}
+              <ChartCard className="lg:col-span-2" title="Satış trendi və kümulyativ (6 ay)" type="combo (bar + line)" data={salesTrend} context="AZN, aylıq satış sütun, kümulyativ xətt">
+                <ResponsiveContainer width="100%" height={280}>
+                  <ComposedChart data={salesTrend}>
+                    <defs>
+                      <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={PRIMARY} stopOpacity={0.95} />
+                        <stop offset="100%" stopColor={PRIMARY} stopOpacity={0.45} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis dataKey="month" fontSize={12} /><YAxis fontSize={12} />
+                    <Tooltip formatter={(v: number) => formatCurrency(v, 'AZN')} />
+                    <Legend />
+                    <Bar name="Aylıq satış" dataKey="value" fill="url(#barGrad)" radius={[6, 6, 0, 0]} barSize={36} />
+                    <Line name="Kümulyativ" type="monotone" dataKey="cumulative" stroke={CHART_COLORS[1]} strokeWidth={2.5} dot={{ r: 3 }} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </ChartCard>
+
+              {/* Donut: kanal üzrə satış */}
+              <ChartCard title="Kanal üzrə satış" type="donut" data={channelData} context="AZN, satış kanalları payı">
+                {channelData.length === 0 ? <Empty text="Satış məlumatı yoxdur" /> : (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <PieChart>
+                      <Pie data={channelData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={58} outerRadius={92} paddingAngle={3}>
+                        {channelData.map((_, i) => <Cell key={i} stroke="transparent" fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                      </Pie>
                       <Tooltip formatter={(v: number) => formatCurrency(v, 'AZN')} />
-                      <Line type="monotone" dataKey="value" stroke="hsl(var(--primary))" strokeWidth={2} />
-                    </LineChart>
+                      <Legend />
+                    </PieChart>
                   </ResponsiveContainer>
-                </CardContent>
-              </Card>
-              <Card className="rounded-card">
-                <CardHeader><CardTitle className="text-base">Top məhsullar (satılan ədəd)</CardTitle></CardHeader>
-                <CardContent>
-                  {topProducts.length === 0 ? <p className="py-16 text-center text-sm text-muted-foreground">Satış məlumatı yoxdur</p> : (
-                    <ResponsiveContainer width="100%" height={240}>
-                      <BarChart data={topProducts}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                        <XAxis dataKey="name" fontSize={11} /><YAxis fontSize={12} /><Tooltip />
-                        <Bar dataKey="qty" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                      </BarChart>
+                )}
+              </ChartCard>
+
+              {/* Radar: ölçü üzrə satış */}
+              <ChartCard title="Ölçü aralığı üzrə satış" type="radar" data={sizeData} context="ədəd, ölçü aralıqları">
+                {sizeData.length === 0 ? <Empty text="Ölçü məlumatı yoxdur" /> : (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <RadarChart data={sizeData}>
+                      <PolarGrid className="stroke-muted" />
+                      <PolarAngleAxis dataKey="size" fontSize={12} />
+                      <PolarRadiusAxis fontSize={10} />
+                      <Radar name="Ədəd" dataKey="qty" stroke={PRIMARY} fill={PRIMARY} fillOpacity={0.35} />
+                      <Tooltip />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                )}
+              </ChartCard>
+
+              {/* Sütun: top məhsullar */}
+              <ChartCard title="Top məhsullar (satılan ədəd)" type="column" data={topProducts} context="ədəd, ən çox satılan modellər">
+                {topProducts.length === 0 ? <Empty text="Satış məlumatı yoxdur" /> : (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={topProducts}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="name" fontSize={11} /><YAxis fontSize={12} /><Tooltip />
+                      <Bar dataKey="qty" radius={[6, 6, 0, 0]}>
+                        {topProducts.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </ChartCard>
+
+              {/* Donut: anbar tərkibi (yalnız direktor) */}
+              {role === 'director' && (
+                <ChartCard title="Anbar dəyəri tərkibi" type="donut" data={inventoryMix} context="AZN, xam material vs hazır məhsul">
+                  {inventoryMix.length === 0 ? <Empty text="Stok məlumatı yoxdur" /> : (
+                    <ResponsiveContainer width="100%" height={260}>
+                      <PieChart>
+                        <Pie data={inventoryMix} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={58} outerRadius={92} paddingAngle={3}>
+                          {inventoryMix.map((_, i) => <Cell key={i} stroke="transparent" fill={[CHART_COLORS[4], CHART_COLORS[0]][i % 2]} />)}
+                        </Pie>
+                        <Tooltip formatter={(v: number) => formatCurrency(v, 'AZN')} />
+                        <Legend />
+                      </PieChart>
                     </ResponsiveContainer>
                   )}
-                </CardContent>
-              </Card>
+                </ChartCard>
+              )}
             </div>
           )}
 

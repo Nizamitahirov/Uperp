@@ -7,6 +7,7 @@ import { where } from 'firebase/firestore';
 import { ArrowLeft, Loader2, Plus, Trash2 } from 'lucide-react';
 import { listDocs } from '@/lib/firebase/firestore';
 import { createSalesOrder, computeSalesTotals } from '@/lib/firebase/sales';
+import { createQuotation } from '@/lib/firebase/quotations';
 import { useAuth } from '@/components/providers/auth-provider';
 import type { Customer, FinishedGoodStock, SalesOrderItem } from '@/types';
 import { tieredDiscount, VAT_RATE } from '@/lib/constants';
@@ -77,10 +78,33 @@ export default function NewSalesOrderPage() {
     }
   }
 
+  async function saveAsQuote() {
+    if (!customer) { toast.error('Müştəri seçin'); return; }
+    if (rows.length === 0) { toast.error('Məhsul əlavə edin'); return; }
+    setSaving(true);
+    try {
+      await createQuotation(
+        { customerId: customer.id, customerName: customer.name, items: rows },
+        { uid: profile?.uid ?? '', username: profile?.username ?? '' },
+      );
+      toast.success('Qiymət təklifi yaradıldı');
+      router.push('/quotations');
+    } catch {
+      toast.error('Təklif yaradılmadı');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div>
       <Button variant="ghost" className="mb-2" onClick={() => router.push('/sales')}><ArrowLeft className="h-4 w-4" /> Satış</Button>
-      <PageHeader title="Yeni Satış Sifarişi" subtitle="Müştəri, variantlar, endirim və ƏDV" action={<Button onClick={save} disabled={saving}>{saving && <Loader2 className="animate-spin" />} Sifariş yarat</Button>} />
+      <PageHeader title="Yeni Satış Sifarişi" subtitle="Müştəri, variantlar, endirim və ƏDV" action={
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={saveAsQuote} disabled={saving}>Təklif kimi saxla</Button>
+          <Button onClick={save} disabled={saving}>{saving && <Loader2 className="animate-spin" />} Sifariş yarat</Button>
+        </div>
+      } />
 
       <Card className="mb-4 rounded-card">
         <CardContent className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">

@@ -40,7 +40,7 @@ export default function NewBOMPage() {
   const [saving, setSaving] = useState(false);
 
   const product = products.find((p) => p.id === productId);
-  const sizes = product?.sizes?.length ? product.sizes : ['Standart'];
+  const sizes = useMemo(() => (product?.sizes?.length ? product.sizes : ['Standart']), [product]);
 
   const cost = useMemo(
     () => computeBomCost({ rows, sizes, laborCost: labor.cost, overheadPercentage: overhead, packagingCost: packaging }),

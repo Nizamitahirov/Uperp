@@ -508,6 +508,25 @@ export interface SalesOrder {
   updatedAt?: Timestamp | null;
 }
 
+export type QuotationStatus = 'sent' | 'accepted' | 'rejected' | 'expired';
+
+export interface Quotation {
+  id: string;
+  quoteNumber: string;
+  customerId: string;
+  customerName?: string;
+  items: SalesOrderItem[];
+  subtotal: number;
+  discountAmount: number;
+  vatAmount: number;
+  totalAmount: number;
+  validUntil?: Timestamp | null;
+  status: QuotationStatus;
+  convertedOrderId?: string;
+  notes?: string;
+  createdAt?: Timestamp | null;
+}
+
 export interface POSItem {
   variantSku: string;
   finishedGoodId: string;

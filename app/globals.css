@@ -106,10 +106,11 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-weight: 500;
-    letter-spacing: -0.005em;
+    font-weight: 400;
+    letter-spacing: -0.006em;
     -webkit-font-smoothing: antialiased;
-    text-rendering: geometricPrecision;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
   h1, h2, h3, h4 {
     letter-spacing: -0.02em;

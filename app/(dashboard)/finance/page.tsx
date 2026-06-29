@@ -13,6 +13,7 @@ import { ARAP_STATUS_META, EXPENSE_CATEGORIES } from '@/lib/constants';
 import { buildAging } from '@/lib/utils/aging';
 import { ChartCard } from '@/components/charts/chart-card';
 import { CHART_COLORS } from '@/components/charts/palette';
+import { AiWriteButton } from '@/components/ai/ai-write-button';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
 import { EmptyState } from '@/components/shared/empty-state';
@@ -240,7 +241,17 @@ export default function FinancePage() {
               </Select>
             </div>
             <div className="space-y-1.5"><Label>Məbləğ</Label><Input type="number" step="any" value={exp.amount} onChange={(e) => setExp({ ...exp, amount: +e.target.value })} /></div>
-            <div className="space-y-1.5"><Label>Təsvir</Label><Input value={exp.description} onChange={(e) => setExp({ ...exp, description: e.target.value })} /></div>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label>Təsvir</Label>
+                <AiWriteButton
+                  buildPrompt={() => `Cins şalvar istehsalı şirkəti üçün "${EXPENSE_CATEGORIES[exp.category]}" kateqoriyasında ${exp.amount} AZN məbləğində xərc üçün qısa, peşəkar təsvir yaz (Azərbaycan dili, 1 cümlə).`}
+                  onResult={(t) => setExp((p) => ({ ...p, description: t }))}
+                  disabled={exp.amount <= 0}
+                />
+              </div>
+              <Input value={exp.description} onChange={(e) => setExp({ ...exp, description: e.target.value })} />
+            </div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setExpOpen(false)}>Ləğv</Button><Button onClick={saveExpense} disabled={submitting}>{submitting && <Loader2 className="animate-spin" />} Əlavə et</Button></DialogFooter>
         </DialogContent>

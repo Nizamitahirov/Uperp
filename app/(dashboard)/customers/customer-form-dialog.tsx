@@ -14,6 +14,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AiWriteButton } from '@/components/ai/ai-write-button';
 
 interface Props {
   open: boolean;
@@ -91,7 +92,16 @@ export function CustomerFormDialog({ open, onOpenChange, initial, onSubmit, subm
               </SelectContent>
             </Select>
           </Field>
-          <div className="sm:col-span-2"><Field label="Qeyd"><Input {...register('notes')} /></Field></div>
+          <div className="sm:col-span-2">
+            <div className="mb-1.5 flex items-center justify-between">
+              <Label>Qeyd</Label>
+              <AiWriteButton
+                buildPrompt={() => `B2B cins/denim müştərisi üçün qısa CRM qeydi yaz (Azərbaycan, 1-2 cümlə). Müştəri: ${watch('name') || 'müştəri'}, tip: ${CUSTOMER_TYPES[watch('type') as CustomerType] ?? ''}, seqment: ${CUSTOMER_SEGMENTS[watch('segment') as CustomerSegment]?.label ?? ''}. Əməkdaşlıq tonunda yaz.`}
+                onResult={(t) => setValue('notes', t)}
+              />
+            </div>
+            <Input {...register('notes')} />
+          </div>
           <DialogFooter className="sm:col-span-2 mt-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Ləğv et</Button>
             <Button type="submit" disabled={submitting}>{submitting && <Loader2 className="animate-spin" />} Yadda saxla</Button>

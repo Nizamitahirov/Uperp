@@ -5,9 +5,12 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { where } from 'firebase/firestore';
 import { Loader2, Sparkles } from 'lucide-react';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from 'recharts';
 import { listDocs, getDocById } from '@/lib/firebase/firestore';
 import { computeRequirements } from '@/lib/firebase/production';
 import { aiPrompt } from '@/lib/ai/client';
+import { ChartCard } from '@/components/charts/chart-card';
+import { CHART_COLORS } from '@/components/charts/palette';
 import type { BOM, FinishedGoodStock, ProductionOrder, RawMaterial } from '@/types';
 import { formatNumber } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
@@ -75,6 +78,9 @@ export default function PlanningPage() {
       .sort((a, b) => b.recommend - a.recommend);
   }, [data]);
 
+  const reorderChart = useMemo(() => mrp.filter((r) => r.suggested > 0).slice(0, 8).map((r) => ({ name: r.m.name.slice(0, 16), Sifariş: Math.round(r.suggested) })), [mrp]);
+  const produceChart = useMemo(() => demand.filter((r) => r.recommend > 0).slice(0, 8).map((r) => ({ name: r.f.variantSku, İstehsal: Math.round(r.recommend) })), [demand]);
+
   async function genInsight() {
     setAiLoading(true);
     try {
@@ -106,6 +112,19 @@ export default function PlanningPage() {
         </TabsList>
 
         <TabsContent value="mrp">
+          {reorderChart.length > 0 && (
+            <div className="mb-4">
+              <ChartCard title="Sifariş tövsiyəsi (top materiallar)" type="column" data={reorderChart} context="tövsiyə olunan sifariş miqdarı (material vahidi ilə)">
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={reorderChart}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis dataKey="name" fontSize={11} /><YAxis fontSize={12} /><Tooltip />
+                    <Bar dataKey="Sifariş" radius={[6, 6, 0, 0]}>{reorderChart.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}</Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartCard>
+            </div>
+          )}
           <Card className="rounded-card">
             <CardHeader><CardTitle className="text-base">Xam material — cari + planlaşdırılmış tələb</CardTitle></CardHeader>
             <CardContent className="p-0">
@@ -135,6 +154,19 @@ export default function PlanningPage() {
         </TabsContent>
 
         <TabsContent value="demand">
+          {produceChart.length > 0 && (
+            <div className="mb-4">
+              <ChartCard title="İstehsal tövsiyəsi (top variantlar)" type="column" data={produceChart} context="tövsiyə olunan istehsal miqdarı (ədəd)">
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={produceChart}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis dataKey="name" fontSize={11} /><YAxis fontSize={12} /><Tooltip />
+                    <Bar dataKey="İstehsal" radius={[6, 6, 0, 0]}>{produceChart.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}</Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartCard>
+            </div>
+          )}
           <Card className="rounded-card">
             <CardHeader><CardTitle className="text-base">Hazır məhsul — istehsal tövsiyəsi</CardTitle></CardHeader>
             <CardContent className="p-0">

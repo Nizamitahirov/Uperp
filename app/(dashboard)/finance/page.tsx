@@ -4,11 +4,15 @@ import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { orderBy, where } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import { listDocs } from '@/lib/firebase/firestore';
 import { recordCustomerPayment, payPayable, createExpense, setExpenseStatus } from '@/lib/firebase/finance';
 import { useAuth } from '@/components/providers/auth-provider';
 import type { CashRegister, Expense, ExpenseCategory, Payable, Receivable } from '@/types';
 import { ARAP_STATUS_META, EXPENSE_CATEGORIES } from '@/lib/constants';
+import { buildAging } from '@/lib/utils/aging';
+import { ChartCard } from '@/components/charts/chart-card';
+import { CHART_COLORS } from '@/components/charts/palette';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
 import { EmptyState } from '@/components/shared/empty-state';
@@ -72,6 +76,12 @@ export default function FinancePage() {
   const arTotal = useMemo(() => receivables.reduce((s, r) => s + (r.balance ?? 0), 0), [receivables]);
   const apTotal = useMemo(() => payables.reduce((s, p) => s + (p.balance ?? 0), 0), [payables]);
 
+  const agingCompare = useMemo(() => {
+    const ar = buildAging(receivables.map((r) => ({ id: r.id, name: r.customerName ?? r.id, balance: r.balance, dueDate: r.dueDate })));
+    const ap = buildAging(payables.map((p) => ({ id: p.id, name: p.supplierName ?? p.id, balance: p.balance, dueDate: p.dueDate })));
+    return ar.buckets.map((b, i) => ({ name: b.name, Debitor: Math.round(b.value), Kreditor: Math.round(ap.buckets[i]?.value ?? 0) }));
+  }, [receivables, payables]);
+
   async function submitAR() {
     if (!arTarget || amount <= 0) return;
     setSubmitting(true);
@@ -105,6 +115,25 @@ export default function FinancePage() {
       <div className="mb-4 grid grid-cols-2 gap-4">
         <Card className="rounded-card"><CardContent className="p-4"><p className="text-xs text-muted-foreground">Debitor (alınacaq)</p><p className="mt-1 text-2xl font-bold text-success">{formatCurrency(arTotal, 'AZN')}</p></CardContent></Card>
         <Card className="rounded-card"><CardContent className="p-4"><p className="text-xs text-muted-foreground">Kreditor (ödəniləcək)</p><p className="mt-1 text-2xl font-bold text-danger">{formatCurrency(apTotal, 'AZN')}</p></CardContent></Card>
+      </div>
+
+      <div className="mb-4">
+        <ChartCard title="Debitor vs Kreditor — yaş qrupları" type="grouped bar" data={agingCompare} context="AZN, AR (alınacaq) və AP (ödəniləcək) yaş qrupları üzrə müqayisə">
+          {arTotal === 0 && apTotal === 0 ? (
+            <p className="py-12 text-center text-sm text-muted-foreground">Açıq borc yoxdur</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={agingCompare} barGap={6}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis dataKey="name" fontSize={12} /><YAxis fontSize={12} />
+                <Tooltip formatter={(v: number) => formatCurrency(v, 'AZN')} />
+                <Legend />
+                <Bar dataKey="Debitor" fill={CHART_COLORS[1]} radius={[6, 6, 0, 0]} />
+                <Bar dataKey="Kreditor" fill={CHART_COLORS[3]} radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </ChartCard>
       </div>
 
       <Tabs defaultValue="ar">

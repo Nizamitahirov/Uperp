@@ -51,6 +51,7 @@
     "cash": "Cash",
     "finance": "Finance",
     "reports": "Reports",
+    "audit": "Audit Log",
     "users": "Users",
     "roles": "Roles",
     "settings": "Settings"

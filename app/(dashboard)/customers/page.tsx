@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { orderBy } from 'firebase/firestore';
 import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
@@ -126,10 +127,12 @@ export default function CustomersPage() {
                 const seg = CUSTOMER_SEGMENTS[c.segment] ?? CUSTOMER_SEGMENTS.regular;
                 return (
                   <TableRow key={c.id}>
-                    <TableCell className="font-mono text-xs">{c.code}</TableCell>
+                    <TableCell className="font-mono text-xs"><Link href={`/customers/${c.id}`} className="hover:underline">{c.code}</Link></TableCell>
                     <TableCell>
-                      <p className="font-medium">{c.name}</p>
-                      {c.companyName && <p className="text-xs text-muted-foreground">{c.companyName}</p>}
+                      <Link href={`/customers/${c.id}`} className="hover:underline">
+                        <p className="font-medium">{c.name}</p>
+                        {c.companyName && <p className="text-xs text-muted-foreground">{c.companyName}</p>}
+                      </Link>
                     </TableCell>
                     <TableCell>{CUSTOMER_TYPES[c.type]}</TableCell>
                     <TableCell><Badge variant={seg.variant}>{seg.label}</Badge></TableCell>

@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { where } from 'firebase/firestore';
-import { Loader2, LogOut, Minus, Plus, ShoppingBag, ShoppingCart, X, Package } from 'lucide-react';
+import { Playfair_Display } from 'next/font/google';
+import { ArrowRight, Loader2, LogOut, Minus, Plus, ShoppingBag, ShoppingCart, X } from 'lucide-react';
 import { listDocs } from '@/lib/firebase/firestore';
 import { createSalesOrder } from '@/lib/firebase/sales';
 import { useAuth } from '@/components/providers/auth-provider';
@@ -19,6 +20,12 @@ import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils/cn';
+
+// Editorial serif — yalnız kataloq (moda jurnalı) başlıqları üçün
+const serif = Playfair_Display({ subsets: ['latin'], weight: ['500', '600', '700', '900'], style: ['normal', 'italic'] });
+
+// Şəkilsiz məhsul üçün dərgi paneli rəngləri
+const PANELS = ['bg-[#1a1c3a] text-white', 'bg-primary text-primary-foreground', 'bg-[#e7e3da] text-[#1a1c3a]', 'bg-[#2a2c45] text-white', 'bg-[#d9d6f5] text-[#2a2c45]'];
 
 export default function CatalogPage() {
   const { firebaseUser, profile, loading } = useAuth();
@@ -56,17 +63,9 @@ export default function CatalogPage() {
     return map;
   }, [goods]);
 
-  // Kolleksiyalara qruplaşdır (moda jurnalı bölmələri)
-  const collections = useMemo(() => {
-    const map = new Map<string, Product[]>();
-    for (const p of products) {
-      const key = p.collection || 'Kolleksiya';
-      const arr = map.get(key) ?? [];
-      arr.push(p);
-      map.set(key, arr);
-    }
-    return Array.from(map.entries());
-  }, [products]);
+  const cover = products[0];
+  const editorials = products.slice(1, 4);
+  const season = cover?.collection || '2026 Kolleksiya';
 
   const cartTotal = cart.reduce((s, i) => s + i.lineTotal, 0);
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
@@ -76,7 +75,6 @@ export default function CatalogPage() {
     setActiveImg(0);
     setQtyByVariant({});
   }
-
   function addVariant(fg: FinishedGoodStock, product: Product) {
     const qty = Math.max(1, qtyByVariant[fg.id] ?? 1);
     const price = fg.wholesalePrice || product.wholesalePrice || fg.unitCost || 0;
@@ -87,7 +85,6 @@ export default function CatalogPage() {
     });
     toast.success(`Səbətə əlavə edildi (${qty})`);
   }
-
   async function checkout() {
     if (cart.length === 0) return;
     setPlacing(true);
@@ -115,107 +112,149 @@ export default function CatalogPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur-md lg:px-10">
-        <Logo />
-        <nav className="hidden items-center gap-8 text-xs font-semibold uppercase tracking-widest text-muted-foreground md:flex">
-          <span className="text-foreground">Kolleksiya</span>
-          <span>Məhsullar</span>
-          <Link href="/my-orders" className="hover:text-foreground">Sifarişlərim</Link>
-        </nav>
-        <div className="flex items-center gap-1">
-          <ThemeToggle />
-          <Button variant="ghost" size="sm" asChild className="md:hidden"><Link href="/my-orders"><ShoppingBag className="h-4 w-4" /></Link></Button>
-          <Button variant="ghost" size="icon" onClick={() => setCartOpen(true)} className="relative">
-            <ShoppingCart className="h-5 w-5" />
-            {cartCount > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">{cartCount}</span>}
-          </Button>
-          <Button variant="ghost" size="icon" onClick={async () => { await logout(firebaseUser); router.replace('/login'); }}><LogOut className="h-4 w-4" /></Button>
+      {/* Masthead */}
+      <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-md">
+        <div className="mx-auto flex h-14 max-w-[1400px] items-center justify-between px-4 lg:px-8">
+          <Logo />
+          <nav className="hidden items-center gap-8 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground md:flex">
+            <span className="text-foreground">Jurnal</span>
+            <span>Lookbook</span>
+            <Link href="/my-orders" className="hover:text-foreground">Sifarişlərim</Link>
+          </nav>
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <Button variant="ghost" size="icon" asChild className="md:hidden"><Link href="/my-orders"><ShoppingBag className="h-4 w-4" /></Link></Button>
+            <Button variant="ghost" size="icon" onClick={() => setCartOpen(true)} className="relative">
+              <ShoppingCart className="h-5 w-5" />
+              {cartCount > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">{cartCount}</span>}
+            </Button>
+            <Button variant="ghost" size="icon" onClick={async () => { await logout(firebaseUser); router.replace('/login'); }}><LogOut className="h-4 w-4" /></Button>
+          </div>
+        </div>
+        {/* Jurnal adı bandı */}
+        <div className="border-t border-border">
+          <div className="mx-auto flex max-w-[1400px] items-center justify-between px-4 py-1.5 text-[10px] uppercase tracking-[0.3em] text-muted-foreground lg:px-8">
+            <span>UP · Denim Journal</span>
+            <span>{season}</span>
+            <span className="hidden sm:inline">№ {String(new Date().getFullYear()).slice(2)}</span>
+          </div>
         </div>
       </header>
 
-      {/* Editorial hero */}
-      <section className="relative overflow-hidden border-b border-border bg-primary-soft">
-        <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-6 px-4 py-16 lg:grid-cols-2 lg:px-10 lg:py-24">
-          <div>
-            <p className="mb-3 text-xs font-bold uppercase tracking-[0.3em] text-primary">UP ERP · B2B Kataloq</p>
-            <h1 className="font-display text-5xl font-extrabold leading-[1.05] tracking-tight text-foreground lg:text-7xl">
-              Premium<br />Denim<br />Kolleksiyası
-            </h1>
-            <p className="mt-5 max-w-md text-sm text-muted-foreground">
-              Topdan alıcılar üçün — modelləri seç, ölçü və miqdarı təyin et, sifarişi birbaşa göndər.
-            </p>
-            <Button className="mt-6 shadow-glow" onClick={() => document.getElementById('grid')?.scrollIntoView({ behavior: 'smooth' })}>
-              Kolleksiyaya bax
-            </Button>
-          </div>
-          <div className="hidden justify-end lg:flex">
-            <div className="flex h-80 w-80 items-center justify-center rounded-card bg-primary/10 ring-1 ring-primary/20">
-              <span className="font-display text-[10rem] font-black leading-none text-primary/30">UP</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Kolleksiyalar */}
-      <main id="grid" className="mx-auto max-w-7xl px-4 py-12 lg:px-10">
-        {isLoading ? (
-          <div className="grid grid-cols-2 gap-6 md:grid-cols-3 lg:grid-cols-4">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="aspect-[3/4] animate-pulse rounded-card bg-muted" />)}</div>
-        ) : products.length === 0 ? (
-          <p className="py-20 text-center text-muted-foreground">Hələ məhsul yoxdur.</p>
-        ) : (
-          collections.map(([name, items]) => (
-            <section key={name} className="mb-16">
-              <div className="mb-6 flex items-end justify-between border-b border-border pb-3">
-                <h2 className="font-display text-2xl font-bold tracking-tight">{name}</h2>
-                <span className="text-xs uppercase tracking-widest text-muted-foreground">{items.length} model</span>
+      {isLoading ? (
+        <div className="mx-auto max-w-[1400px] px-4 py-16 lg:px-8"><div className="h-[70vh] animate-pulse rounded-card bg-muted" /></div>
+      ) : products.length === 0 ? (
+        <p className="py-32 text-center text-muted-foreground">Hələ məhsul yoxdur.</p>
+      ) : (
+        <>
+          {/* COVER — dərgi üz qabığı */}
+          {cover && (
+            <section className="relative">
+              <div className="relative h-[78vh] w-full overflow-hidden">
+                {cover.images?.[0]?.url ? (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={cover.images[0].url} alt={cover.name?.az ?? ''} className="h-full w-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/30" />
+                  </>
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-[#16182f]">
+                    <span className={cn(serif.className, 'select-none text-[28vw] font-black leading-none text-white/10')}>UP</span>
+                  </div>
+                )}
+                <div className="absolute inset-x-0 bottom-0 p-6 text-white lg:p-16">
+                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.35em] text-white/80">Cover Story · {season}</p>
+                  <h1 className={cn(serif.className, 'max-w-3xl text-5xl font-bold leading-[0.95] tracking-tight lg:text-8xl')}>
+                    {cover.name?.az}
+                  </h1>
+                  <div className="mt-5 flex flex-wrap items-center gap-4">
+                    <span className="text-lg font-semibold">{formatCurrency(cover.wholesalePrice, 'AZN')}</span>
+                    <span className="text-xs uppercase tracking-widest text-white/70">{cover.fit ? PRODUCT_FITS[cover.fit] : ''}{cover.colorName ? ` · ${cover.colorName}` : ''}{cover.washEffect ? ` · ${cover.washEffect}` : ''}</span>
+                    <Button onClick={() => openProduct(cover)} className="shadow-glow">Modeli aç <ArrowRight className="h-4 w-4" /></Button>
+                  </div>
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-10 md:grid-cols-3 lg:grid-cols-4">
-                {items.map((p) => {
-                  const variants = variantsByProduct.get(p.id) ?? [];
-                  const img0 = p.images?.[0]?.url;
-                  const img1 = p.images?.[1]?.url;
-                  return (
-                    <button key={p.id} onClick={() => openProduct(p)} className="group text-left">
-                      <div className="relative aspect-[3/4] overflow-hidden rounded-card bg-muted shadow-soft">
-                        {img0 ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={img0} alt={p.name?.az ?? ''} className={cn('h-full w-full object-cover transition-opacity duration-500', img1 && 'group-hover:opacity-0')} />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center"><Package className="h-12 w-12 text-muted-foreground/30" /></div>
-                        )}
-                        {img1 && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={img1} alt="" className="absolute inset-0 h-full w-full object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-                        )}
-                        {variants.length === 0 && (
-                          <span className="absolute left-2 top-2 rounded-full bg-foreground/80 px-2 py-0.5 text-[10px] font-semibold uppercase text-background">Tezliklə</span>
-                        )}
-                        {p.washEffect && (
-                          <span className="absolute bottom-2 left-2 rounded-full bg-background/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground">{p.washEffect}</span>
-                        )}
-                      </div>
-                      <div className="mt-3">
-                        <p className="font-display text-base font-semibold leading-tight">{p.name?.az}</p>
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                          {p.fit ? PRODUCT_FITS[p.fit] : ''}{p.colorName ? ` · ${p.colorName}` : ''}
-                        </p>
-                        <div className="mt-1.5 flex items-baseline gap-2">
-                          <span className="text-base font-bold text-foreground">{formatCurrency(p.wholesalePrice, 'AZN')}</span>
-                          {p.retailPrice > 0 && <span className="text-xs text-muted-foreground line-through">{formatCurrency(p.retailPrice, 'AZN')}</span>}
+            </section>
+          )}
+
+          {/* EDITORIAL SPREAD-lər — nömrəli, növbələşən */}
+          {editorials.length > 0 && (
+            <section className="mx-auto max-w-[1400px] px-4 py-16 lg:px-8 lg:py-24">
+              {editorials.map((p, idx) => {
+                const img = p.images?.[0]?.url;
+                const reverse = idx % 2 === 1;
+                return (
+                  <article key={p.id} className="mb-20 grid grid-cols-1 items-center gap-8 lg:mb-28 lg:grid-cols-2 lg:gap-16">
+                    <div className={cn('relative aspect-[4/5] overflow-hidden rounded-card', reverse && 'lg:order-2')}>
+                      {img ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={img} alt={p.name?.az ?? ''} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className={cn('flex h-full w-full items-center justify-center p-8', PANELS[idx % PANELS.length])}>
+                          <span className={cn(serif.className, 'text-center text-4xl font-bold italic leading-tight')}>{p.name?.az}</span>
                         </div>
+                      )}
+                    </div>
+                    <div className={cn(reverse && 'lg:order-1')}>
+                      <span className={cn(serif.className, 'text-6xl font-black text-primary/30')}>{String(idx + 1).padStart(2, '0')}</span>
+                      <h2 className={cn(serif.className, 'mt-2 text-4xl font-bold leading-tight lg:text-5xl')}>{p.name?.az}</h2>
+                      <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.25em] text-muted-foreground">
+                        {p.fit ? PRODUCT_FITS[p.fit] : ''}{p.colorName ? ` — ${p.colorName}` : ''}{p.weight ? ` — ${p.weight}` : ''}
+                      </p>
+                      {p.description?.az && <p className="mt-5 max-w-md leading-relaxed text-muted-foreground">{p.description.az}</p>}
+                      <div className="mt-6 flex items-center gap-4">
+                        <span className="text-2xl font-bold text-foreground">{formatCurrency(p.wholesalePrice, 'AZN')}</span>
+                        {p.retailPrice > 0 && <span className="text-sm text-muted-foreground line-through">{formatCurrency(p.retailPrice, 'AZN')}</span>}
+                        <Button variant="outline" onClick={() => openProduct(p)}>Bax <ArrowRight className="h-4 w-4" /></Button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </section>
+          )}
+
+          {/* LOOKBOOK — masonry */}
+          <section className="border-t border-border bg-secondary/40 py-16 lg:py-24">
+            <div className="mx-auto max-w-[1400px] px-4 lg:px-8">
+              <div className="mb-10 text-center">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-muted-foreground">Bütün modellər</p>
+                <h2 className={cn(serif.className, 'mt-2 text-4xl font-bold lg:text-6xl')}>Lookbook</h2>
+              </div>
+              <div className="columns-2 gap-4 md:columns-3 lg:columns-4 [&>*]:mb-4">
+                {products.map((p, i) => {
+                  const img = p.images?.[0]?.url;
+                  const variants = variantsByProduct.get(p.id) ?? [];
+                  const aspect = ['aspect-[3/4]', 'aspect-square', 'aspect-[4/5]', 'aspect-[3/4]'][i % 4];
+                  return (
+                    <button key={p.id} onClick={() => openProduct(p)} className="group relative block w-full break-inside-avoid overflow-hidden rounded-card text-left shadow-soft">
+                      <div className={cn('relative w-full overflow-hidden', aspect)}>
+                        {img ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={img} alt={p.name?.az ?? ''} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                        ) : (
+                          <div className={cn('flex h-full w-full items-center justify-center p-6', PANELS[i % PANELS.length])}>
+                            <span className={cn(serif.className, 'text-center text-2xl font-bold italic leading-tight')}>{p.name?.az}</span>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                      </div>
+                      <div className="absolute inset-x-0 bottom-0 p-3 opacity-0 transition-opacity group-hover:opacity-100">
+                        <p className="text-sm font-semibold text-white">{p.name?.az}</p>
+                        <p className="text-xs text-white/80">{formatCurrency(p.wholesalePrice, 'AZN')}{variants.length === 0 ? ' · tezliklə' : ''}</p>
                       </div>
                     </button>
                   );
                 })}
               </div>
-            </section>
-          ))
-        )}
-      </main>
+            </div>
+          </section>
+        </>
+      )}
 
-      <footer className="border-t border-border py-10 text-center text-xs text-muted-foreground">
-        UP ERP · Premium Denim · {new Date().getFullYear()}
+      <footer className="border-t border-border py-10 text-center">
+        <span className={cn(serif.className, 'text-xl font-bold italic')}>UP · Denim Journal</span>
+        <p className="mt-1 text-xs text-muted-foreground">{new Date().getFullYear()} · Premium B2B Denim</p>
       </footer>
 
       {/* Məhsul detalı — qalereya + variantlar */}
@@ -223,14 +262,15 @@ export default function CatalogPage() {
         <DialogContent className="max-w-3xl p-0">
           {selected && (
             <div className="grid grid-cols-1 md:grid-cols-2">
-              {/* Qalereya */}
               <div className="bg-muted p-4">
                 <div className="aspect-[3/4] overflow-hidden rounded-md bg-background">
                   {selImages[activeImg] ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={selImages[activeImg]} alt={selected.name?.az ?? ''} className="h-full w-full object-cover" />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center"><Package className="h-16 w-16 text-muted-foreground/30" /></div>
+                    <div className={cn('flex h-full w-full items-center justify-center p-6', PANELS[0])}>
+                      <span className={cn(serif.className, 'text-center text-3xl font-bold italic')}>{selected.name?.az}</span>
+                    </div>
                   )}
                 </div>
                 {selImages.length > 1 && (
@@ -243,25 +283,22 @@ export default function CatalogPage() {
                 )}
               </div>
 
-              {/* Məlumat + variant */}
               <div className="max-h-[80vh] overflow-y-auto p-6">
                 <DialogHeader>
-                  <DialogTitle className="font-display text-2xl">{selected.name?.az}</DialogTitle>
+                  <DialogTitle className={cn(serif.className, 'text-3xl')}>{selected.name?.az}</DialogTitle>
                 </DialogHeader>
-                <p className="mt-1 text-xs uppercase tracking-wide text-muted-foreground">
+                <p className="mt-1 text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
                   {selected.fit ? PRODUCT_FITS[selected.fit] : ''}{selected.colorName ? ` · ${selected.colorName}` : ''}{selected.weight ? ` · ${selected.weight}` : ''}
                 </p>
-
                 <div className="mt-3 flex items-baseline gap-3">
                   <span className="text-2xl font-bold text-primary">{formatCurrency(selected.wholesalePrice, 'AZN')}</span>
                   <span className="text-xs uppercase tracking-wide text-muted-foreground">topdan / ədəd</span>
                   {selected.retailPrice > 0 && <span className="text-sm text-muted-foreground line-through">{formatCurrency(selected.retailPrice, 'AZN')}</span>}
                 </div>
-
-                {selected.description?.az && <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{selected.description.az}</p>}
+                {selected.description?.az && <p className="mt-4 leading-relaxed text-muted-foreground">{selected.description.az}</p>}
 
                 <div className="mt-5">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mövcud ölçülər</p>
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Mövcud ölçülər</p>
                   {selVariants.length === 0 ? (
                     <p className="text-sm text-muted-foreground">Hazırda stokda variant yoxdur.</p>
                   ) : (

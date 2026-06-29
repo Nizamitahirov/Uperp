@@ -5,6 +5,17 @@ export type { RoleCode };
 
 export type UserStatus = 'active' | 'inactive' | 'pending';
 
+/** Dinamik (custom) rol — roles/{id} (01 §1.2.2) */
+export interface CustomRole {
+  id: string;
+  name: string;
+  level: number;
+  permissions: Record<string, string[]>; // module: actions
+  customLimits?: { maxApprovalAmount?: number; canApproveDiscount?: boolean };
+  isCustom: true;
+  createdAt?: Timestamp | null;
+}
+
 /** users/{uid} — 14.2 */
 export interface AppUser {
   uid: string;

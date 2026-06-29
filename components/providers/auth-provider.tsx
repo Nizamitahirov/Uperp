@@ -4,8 +4,9 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase/config';
 import { fetchUserProfile } from '@/lib/firebase/auth';
+import { fetchCustomRole } from '@/lib/firebase/roles';
 import type { AppUser, RoleCode } from '@/types';
-import { can, canAccessModule, type ModuleKey, type PermissionAction } from '@/lib/rbac/permissions';
+import { can, canAccessModule, ROLES, type ModuleKey, type PermissionAction } from '@/lib/rbac/permissions';
 
 interface AuthContextValue {
   firebaseUser: FirebaseUser | null;
@@ -23,11 +24,23 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<AppUser | null>(null);
+  const [customPerms, setCustomPerms] = useState<Record<string, string[]> | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function loadProfile(uid: string) {
     const p = await fetchUserProfile(uid);
     setProfile(p);
+    // Built-in deyilsə → custom rol permission-larını gətir (01 §1.2.2)
+    if (p?.role && !(p.role in ROLES)) {
+      try {
+        const cr = await fetchCustomRole(p.role);
+        setCustomPerms(cr?.permissions ?? null);
+      } catch {
+        setCustomPerms(null);
+      }
+    } else {
+      setCustomPerms(null);
+    }
   }
 
   useEffect(() => {
@@ -45,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } else {
         setProfile(null);
+        setCustomPerms(null);
       }
       setLoading(false);
     });
@@ -52,6 +66,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const role = profile?.role;
+  const isBuiltIn = role ? role in ROLES : false;
+
+  function checkCan(module: ModuleKey, action: PermissionAction): boolean {
+    if (isBuiltIn) return can(role, module, action);
+    if (customPerms) return (customPerms[module] ?? []).includes(action);
+    return false;
+  }
+  function checkAccess(module: ModuleKey): boolean {
+    if (isBuiltIn) return canAccessModule(role, module);
+    if (customPerms) return (customPerms[module] ?? []).length > 0;
+    return false;
+  }
 
   const value: AuthContextValue = {
     firebaseUser,
@@ -59,8 +85,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     role,
     loading,
     configured: isFirebaseConfigured,
-    can: (module, action) => can(role, module, action),
-    canAccess: (module) => canAccessModule(role, module),
+    can: checkCan,
+    canAccess: checkAccess,
     refresh: async () => {
       if (firebaseUser) await loadProfile(firebaseUser.uid);
     },

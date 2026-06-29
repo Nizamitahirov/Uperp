@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { MATERIAL_CATEGORIES } from '@/types';
-import { ALL_ROLE_CODES } from '@/lib/rbac/permissions';
 
 /** İstifadəçi yaratma sxemi — 01 §1.4.1 */
 export const userSchema = z.object({
@@ -16,7 +15,7 @@ export const userSchema = z.object({
     .regex(/^\+994\d{9}$/, 'Format: +994XXXXXXXXX')
     .optional()
     .or(z.literal('')),
-  role: z.enum(ALL_ROLE_CODES as [string, ...string[]]),
+  role: z.string().min(1, 'Rol seçin'), // built-in kod və ya custom rol id
   password: z
     .string()
     .min(8, 'Ən azı 8 simvol')
@@ -33,7 +32,7 @@ export const userEditSchema = z.object({
     .regex(/^\+994\d{9}$/, 'Format: +994XXXXXXXXX')
     .optional()
     .or(z.literal('')),
-  role: z.enum(ALL_ROLE_CODES as [string, ...string[]]),
+  role: z.string().min(1, 'Rol seçin'),
   isActive: z.boolean().default(true),
 });
 export type UserEditFormValues = z.infer<typeof userEditSchema>;

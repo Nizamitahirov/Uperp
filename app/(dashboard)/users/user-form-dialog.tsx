@@ -3,14 +3,17 @@
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
+import { listDocs } from '@/lib/firebase/firestore';
+import type { CustomRole } from '@/types';
 import {
   userSchema,
   userEditSchema,
   type UserFormValues,
   type UserEditFormValues,
 } from '@/lib/validations';
-import { ROLES, ALL_ROLE_CODES, type RoleCode } from '@/lib/rbac/permissions';
+import { ROLES, ALL_ROLE_CODES } from '@/lib/rbac/permissions';
 import type { AppUser } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -143,9 +146,13 @@ export function UserFormDialog({ open, onOpenChange, initial, onCreate, onUpdate
   );
 }
 
-function RoleSelect({ value, onChange }: { value: string; onChange: (v: RoleCode) => void }) {
+function RoleSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { data: customRoles = [] } = useQuery({
+    queryKey: ['roles'],
+    queryFn: () => listDocs<CustomRole>('roles', []),
+  });
   return (
-    <Select value={value} onValueChange={(v) => onChange(v as RoleCode)}>
+    <Select value={value} onValueChange={onChange}>
       <SelectTrigger>
         <SelectValue />
       </SelectTrigger>
@@ -153,6 +160,11 @@ function RoleSelect({ value, onChange }: { value: string; onChange: (v: RoleCode
         {STAFF_ROLES.map((r) => (
           <SelectItem key={r} value={r}>
             {ROLES[r].name} (səviyyə {ROLES[r].level})
+          </SelectItem>
+        ))}
+        {customRoles.map((r) => (
+          <SelectItem key={r.id} value={r.id}>
+            {r.name} (custom · səviyyə {r.level})
           </SelectItem>
         ))}
       </SelectContent>

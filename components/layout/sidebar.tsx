@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { NAV_ITEMS } from '@/lib/nav';
 import { useAuth } from '@/components/providers/auth-provider';
+import { Logo } from './logo';
 import { cn } from '@/lib/utils/cn';
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
@@ -16,9 +17,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-16 items-center gap-2 border-b px-5">
-        <span className="text-xl">👖</span>
-        <span className="font-display text-lg font-bold text-primary">Jeans ERP</span>
+      <div className="flex h-16 items-center border-b px-5">
+        <Logo />
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto p-3">
         {items.map((item) => {

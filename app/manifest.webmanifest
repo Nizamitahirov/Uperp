@@ -1,7 +1,7 @@
 {
-  "name": "Jeans ERP/MES",
-  "short_name": "Jeans ERP",
-  "description": "Cins şalvar istehsalı üçün ERP/MES sistemi",
+  "name": "UP ERP",
+  "short_name": "UP ERP",
+  "description": "UP ERP — istehsal idarəetmə sistemi",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#ffffff",

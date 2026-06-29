@@ -14,6 +14,7 @@ import type { FinishedGoodStock, Product, SalesOrderItem } from '@/types';
 import { PRODUCT_FITS, VAT_RATE } from '@/lib/constants';
 import { formatCurrency } from '@/lib/utils/format';
 import { Button } from '@/components/ui/button';
+import { Logo } from '@/components/layout/logo';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/toast';
@@ -89,7 +90,7 @@ export default function CatalogPage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background/95 px-4 backdrop-blur lg:px-8">
-        <h1 className="font-display text-xl font-bold text-primary">👖 DENIM</h1>
+        <Logo />
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" asChild><Link href="/my-orders"><ShoppingBag className="h-4 w-4" /> Sifarişlərim</Link></Button>
           <Button variant="ghost" size="icon" onClick={() => setCartOpen(true)} className="relative">

@@ -9,8 +9,8 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'sw
 const playfair = Playfair_Display({ subsets: ['latin'], variable: '--font-display', display: 'swap' });
 
 export const metadata: Metadata = {
-  title: 'Jeans ERP/MES',
-  description: 'Cins şalvar istehsalı üçün ERP/MES sistemi',
+  title: 'UP ERP',
+  description: 'UP ERP — istehsal idarəetmə sistemi',
   manifest: '/manifest.webmanifest',
 };
 

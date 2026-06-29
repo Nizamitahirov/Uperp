@@ -307,6 +307,24 @@ export interface Product {
   updatedAt?: Timestamp | null;
 }
 
+// ── Katalog / Moda Jurnalı ──────────────────────────────────
+export type CatalogStatus = 'draft' | 'published' | 'archived';
+
+export interface Catalog {
+  id: string;
+  title: { az: string; en: string };
+  subtitle?: string;
+  season?: string;        // Mövsüm — məs. "Yaz-Yay 2026"
+  collectionName?: string; // Kolleksiya adı
+  issueNumber?: string;    // Buraxılış № — məs. "01"
+  coverProductId?: string; // Üz qabığı modeli (boşdursa ilk məhsul)
+  productIds: string[];    // Jurnaldakı məhsullar — sıralı
+  status: CatalogStatus;
+  publishedAt?: Timestamp | null;
+  createdAt?: Timestamp | null;
+  updatedAt?: Timestamp | null;
+}
+
 // ── BOM (03 §3.2) ───────────────────────────────────────────
 export interface BOMItem {
   materialId: string;

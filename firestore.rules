@@ -136,6 +136,12 @@ service cloud.firestore {
       allow create, update: if hasRole(['director','production']);
       allow delete: if hasRole(['director']);
     }
+    // Kataloq jurnalları — hamı oxuya bilər (müştəri preview), idarəçi yazır
+    match /catalogs/{catalogId} {
+      allow read: if signedIn();
+      allow create, update: if hasRole(['director','production','sales']);
+      allow delete: if hasRole(['director']);
+    }
 
     // ── Satış ───────────────────────────────────────────────
     match /quotations/{docId} {

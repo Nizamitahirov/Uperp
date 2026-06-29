@@ -1,23 +1,25 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { where } from 'firebase/firestore';
 import { Playfair_Display } from 'next/font/google';
-import { ArrowRight, Loader2, LogOut, Minus, Plus, ShoppingBag, ShoppingCart, X } from 'lucide-react';
-import { listDocs } from '@/lib/firebase/firestore';
+import { ArrowRight, Images, Loader2, LogOut, Minus, Plus, ShoppingBag, ShoppingCart, X } from 'lucide-react';
+import { listDocs, getDocById } from '@/lib/firebase/firestore';
+import { listPublishedCatalogs } from '@/lib/firebase/catalogs';
 import { createSalesOrder } from '@/lib/firebase/sales';
 import { useAuth } from '@/components/providers/auth-provider';
 import { logout } from '@/lib/firebase/auth';
-import type { FinishedGoodStock, Product, SalesOrderItem } from '@/types';
+import type { Catalog, FinishedGoodStock, Product, SalesOrderItem } from '@/types';
 import { PRODUCT_FITS, VAT_RATE } from '@/lib/constants';
 import { formatCurrency } from '@/lib/utils/format';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/layout/logo';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Slideshow } from '@/components/catalog/slideshow';
 import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils/cn';
 
@@ -27,9 +29,24 @@ const serif = Playfair_Display({ subsets: ['latin'], weight: ['500', '600', '700
 // Şəkilsiz məhsul üçün dərgi paneli rəngləri
 const PANELS = ['bg-[#1a1c3a] text-white', 'bg-primary text-primary-foreground', 'bg-[#e7e3da] text-[#1a1c3a]', 'bg-[#2a2c45] text-white', 'bg-[#d9d6f5] text-[#2a2c45]'];
 
+const imgs = (p?: Product) => p?.images?.map((i) => i.url).filter(Boolean) ?? [];
+
 export default function CatalogPage() {
-  const { firebaseUser, profile, loading } = useAuth();
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
+      <CatalogInner />
+    </Suspense>
+  );
+}
+
+function CatalogInner() {
+  const { firebaseUser, profile, loading, can } = useAuth();
   const router = useRouter();
+  const params = useSearchParams();
+  const journalParam = params.get('journal');
+  const canManage = can('products', 'update');
+
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Product | null>(null);
   const [activeImg, setActiveImg] = useState(0);
   const [qtyByVariant, setQtyByVariant] = useState<Record<string, number>>({});
@@ -41,6 +58,10 @@ export default function CatalogPage() {
     if (!loading && !firebaseUser) router.replace('/login');
   }, [loading, firebaseUser, router]);
 
+  useEffect(() => {
+    if (journalParam) setActiveId(journalParam);
+  }, [journalParam]);
+
   const { data: products = [], isLoading } = useQuery({
     queryKey: ['catalog-products'],
     queryFn: () => listDocs<Product>('products', [where('status', '==', 'active')]),
@@ -51,6 +72,37 @@ export default function CatalogPage() {
     queryFn: () => listDocs<FinishedGoodStock>('finished_goods', []),
     enabled: !!firebaseUser,
   });
+  const { data: published = [] } = useQuery({
+    queryKey: ['catalog-published'],
+    queryFn: () => listPublishedCatalogs(),
+    enabled: !!firebaseUser,
+  });
+  // Admin preview — dərc olunmamış jurnalı da göstər (yalnız idarəçi üçün)
+  const { data: previewCatalog } = useQuery({
+    queryKey: ['catalog-preview', journalParam],
+    queryFn: () => getDocById<Catalog>('catalogs', journalParam!),
+    enabled: !!firebaseUser && !!journalParam && canManage,
+  });
+
+  const catalogs = useMemo(() => {
+    const list = [...published];
+    if (previewCatalog && !list.some((c) => c.id === previewCatalog.id)) list.unshift(previewCatalog);
+    return list;
+  }, [published, previewCatalog]);
+
+  const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+
+  const active = useMemo(() => {
+    if (catalogs.length === 0) return null;
+    const id = activeId ?? catalogs[0].id;
+    return catalogs.find((c) => c.id === id) ?? catalogs[0];
+  }, [catalogs, activeId]);
+
+  // Jurnaldakı modellər — sıralı (katalog varsa), yoxdursa bütün aktiv məhsullar
+  const ordered = useMemo(() => {
+    if (!active) return products;
+    return active.productIds.map((id) => productById.get(id)).filter((p): p is Product => !!p);
+  }, [active, products, productById]);
 
   const variantsByProduct = useMemo(() => {
     const map = new Map<string, FinishedGoodStock[]>();
@@ -63,9 +115,16 @@ export default function CatalogPage() {
     return map;
   }, [goods]);
 
-  const cover = products[0];
-  const editorials = products.slice(1, 4);
-  const season = cover?.collection || '2026 Kolleksiya';
+  const coverId = active?.coverProductId || active?.productIds[0];
+  const cover = coverId ? productById.get(coverId) ?? ordered[0] : ordered[0];
+  const rest = ordered.filter((p) => p.id !== cover?.id);
+  const editorials = rest.slice(0, 3);
+
+  const title = active?.title?.az || 'UP · Denim Journal';
+  const season = active?.season || active?.collectionName || cover?.collection || '2026 Kolleksiya';
+  const issue = active?.issueNumber || String(new Date().getFullYear()).slice(2);
+  const subtitle = active?.subtitle;
+  const isDraftPreview = active && active.status !== 'published';
 
   const cartTotal = cart.reduce((s, i) => s + i.lineTotal, 0);
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
@@ -108,7 +167,8 @@ export default function CatalogPage() {
   }
 
   const selVariants = selected ? variantsByProduct.get(selected.id) ?? [] : [];
-  const selImages = selected?.images?.map((i) => i.url) ?? [];
+  const selImages = imgs(selected ?? undefined);
+  const coverImgs = imgs(cover);
 
   return (
     <div className="min-h-screen bg-background">
@@ -134,39 +194,64 @@ export default function CatalogPage() {
         {/* Jurnal adı bandı */}
         <div className="border-t border-border">
           <div className="mx-auto flex max-w-[1400px] items-center justify-between px-4 py-1.5 text-[10px] uppercase tracking-[0.3em] text-muted-foreground lg:px-8">
-            <span>UP · Denim Journal</span>
-            <span>{season}</span>
-            <span className="hidden sm:inline">№ {String(new Date().getFullYear()).slice(2)}</span>
+            <span className="truncate">{title}</span>
+            <span className="hidden truncate sm:inline">{season}</span>
+            <span>№ {issue}</span>
           </div>
         </div>
+        {/* Jurnal seçici — birdən çox dərc olunmuş jurnal varsa */}
+        {catalogs.length > 1 && (
+          <div className="border-t border-border bg-secondary/30">
+            <div className="mx-auto flex max-w-[1400px] gap-2 overflow-x-auto px-4 py-2 lg:px-8">
+              {catalogs.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setActiveId(c.id)}
+                  className={cn(
+                    'shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                    active?.id === c.id ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:bg-secondary',
+                  )}
+                >
+                  {c.title?.az}{c.status !== 'published' ? ' · qaralama' : ''}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </header>
+
+      {isDraftPreview && (
+        <div className="bg-warning/15 py-2 text-center text-xs font-medium text-foreground">
+          Önizləmə — bu jurnal hələ dərc olunmayıb (yalnız idarəçilərə görünür)
+        </div>
+      )}
 
       {isLoading ? (
         <div className="mx-auto max-w-[1400px] px-4 py-16 lg:px-8"><div className="h-[70vh] animate-pulse rounded-card bg-muted" /></div>
-      ) : products.length === 0 ? (
-        <p className="py-32 text-center text-muted-foreground">Hələ məhsul yoxdur.</p>
+      ) : ordered.length === 0 ? (
+        <p className="py-32 text-center text-muted-foreground">
+          {catalogs.length === 0 ? 'Hələ dərc olunmuş jurnal yoxdur.' : 'Bu jurnalda model yoxdur.'}
+        </p>
       ) : (
         <>
           {/* COVER — dərgi üz qabığı */}
           {cover && (
             <section className="relative">
               <div className="relative h-[78vh] w-full overflow-hidden">
-                {cover.images?.[0]?.url ? (
-                  <>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={cover.images[0].url} alt={cover.name?.az ?? ''} className="h-full w-full object-cover" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/30" />
-                  </>
+                {coverImgs.length > 0 ? (
+                  <Slideshow images={coverImgs} alt={cover.name?.az ?? ''} interval={5000} dots={coverImgs.length > 1} />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center bg-[#16182f]">
                     <span className={cn(serif.className, 'select-none text-[28vw] font-black leading-none text-white/10')}>UP</span>
                   </div>
                 )}
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/30" />
                 <div className="absolute inset-x-0 bottom-0 p-6 text-white lg:p-16">
                   <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.35em] text-white/80">Cover Story · {season}</p>
                   <h1 className={cn(serif.className, 'max-w-3xl text-5xl font-bold leading-[0.95] tracking-tight lg:text-8xl')}>
                     {cover.name?.az}
                   </h1>
+                  {subtitle && <p className="mt-3 max-w-xl text-sm text-white/80 lg:text-base">{subtitle}</p>}
                   <div className="mt-5 flex flex-wrap items-center gap-4">
                     <span className="text-lg font-semibold">{formatCurrency(cover.wholesalePrice, 'AZN')}</span>
                     <span className="text-xs uppercase tracking-widest text-white/70">{cover.fit ? PRODUCT_FITS[cover.fit] : ''}{cover.colorName ? ` · ${cover.colorName}` : ''}{cover.washEffect ? ` · ${cover.washEffect}` : ''}</span>
@@ -181,14 +266,13 @@ export default function CatalogPage() {
           {editorials.length > 0 && (
             <section className="mx-auto max-w-[1400px] px-4 py-16 lg:px-8 lg:py-24">
               {editorials.map((p, idx) => {
-                const img = p.images?.[0]?.url;
+                const pImgs = imgs(p);
                 const reverse = idx % 2 === 1;
                 return (
                   <article key={p.id} className="mb-20 grid grid-cols-1 items-center gap-8 lg:mb-28 lg:grid-cols-2 lg:gap-16">
                     <div className={cn('relative aspect-[4/5] overflow-hidden rounded-card', reverse && 'lg:order-2')}>
-                      {img ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={img} alt={p.name?.az ?? ''} className="h-full w-full object-cover" />
+                      {pImgs.length > 0 ? (
+                        <Slideshow images={pImgs} alt={p.name?.az ?? ''} interval={4000 + idx * 600} dots={pImgs.length > 1} />
                       ) : (
                         <div className={cn('flex h-full w-full items-center justify-center p-8', PANELS[idx % PANELS.length])}>
                           <span className={cn(serif.className, 'text-center text-4xl font-bold italic leading-tight')}>{p.name?.az}</span>
@@ -222,20 +306,25 @@ export default function CatalogPage() {
                 <h2 className={cn(serif.className, 'mt-2 text-4xl font-bold lg:text-6xl')}>Lookbook</h2>
               </div>
               <div className="columns-2 gap-4 md:columns-3 lg:columns-4 [&>*]:mb-4">
-                {products.map((p, i) => {
-                  const img = p.images?.[0]?.url;
+                {ordered.map((p, i) => {
+                  const pImgs = imgs(p);
                   const variants = variantsByProduct.get(p.id) ?? [];
                   const aspect = ['aspect-[3/4]', 'aspect-square', 'aspect-[4/5]', 'aspect-[3/4]'][i % 4];
                   return (
                     <button key={p.id} onClick={() => openProduct(p)} className="group relative block w-full break-inside-avoid overflow-hidden rounded-card text-left shadow-soft">
                       <div className={cn('relative w-full overflow-hidden', aspect)}>
-                        {img ? (
+                        {pImgs.length > 0 ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={img} alt={p.name?.az ?? ''} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                          <img src={pImgs[0]} alt={p.name?.az ?? ''} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
                         ) : (
                           <div className={cn('flex h-full w-full items-center justify-center p-6', PANELS[i % PANELS.length])}>
                             <span className={cn(serif.className, 'text-center text-2xl font-bold italic leading-tight')}>{p.name?.az}</span>
                           </div>
+                        )}
+                        {pImgs.length > 1 && (
+                          <span className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
+                            <Images className="h-3 w-3" /> {pImgs.length}
+                          </span>
                         )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                       </div>

@@ -1,6 +1,6 @@
 {
   "common": {
-    "appName": "Jeans ERP",
+    "appName": "UP ERP",
     "loading": "Yüklənir...",
     "save": "Yadda saxla",
     "cancel": "Ləğv et",
@@ -40,16 +40,23 @@
     "bom": "BOM",
     "suppliers": "Təchizatçılar",
     "customers": "Müştərilər",
+    "crm": "CRM",
     "procurement": "Satınalma",
     "production": "İstehsal",
     "washing": "Yuyulma",
     "finished_goods": "Hazır məhsul",
+    "planning": "Planlaşdırma",
     "products": "Məhsul kataloqu",
+    "catalogs": "Kataloq jurnalları",
     "sales": "Satış",
-    "pos": "POS / Kassa",
+    "quotations": "Təkliflər",
+    "pos": "POS",
+    "cash": "Kassa",
     "finance": "Maliyyə",
     "reports": "Hesabatlar",
+    "audit": "Audit Log",
     "users": "İstifadəçilər",
+    "roles": "Rollar",
     "settings": "Tənzimləmələr"
   },
   "materials": {

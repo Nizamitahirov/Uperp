@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Logo } from '@/components/layout/logo';
 import { toast } from '@/components/ui/toast';
 
 export default function LoginPage() {
@@ -65,9 +66,9 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4">
       <div className="w-full max-w-md">
-        <div className="mb-6 text-center">
-          <h1 className="font-display text-3xl font-bold text-primary">👖 Jeans ERP</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Cins şalvar istehsalı idarəetmə sistemi</p>
+        <div className="mb-6 flex flex-col items-center gap-2 text-center">
+          <Logo />
+          <p className="mt-1 text-sm text-muted-foreground">İstehsal idarəetmə sistemi</p>
         </div>
 
         <Card className="rounded-card">

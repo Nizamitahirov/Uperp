@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Bell, LogOut, Menu, User } from 'lucide-react';
+import { LogOut, Menu, User } from 'lucide-react';
 import { useAuth } from '@/components/providers/auth-provider';
 import { logout } from '@/lib/firebase/auth';
 import { getRoleName } from '@/lib/rbac/permissions';
@@ -17,6 +17,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { LocaleSwitcher } from './locale-switcher';
+import { NotificationBell } from './notification-bell';
+import { ThemeToggle } from './theme-toggle';
 
 export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const t = useTranslations('common');
@@ -40,10 +42,9 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
       </div>
 
       <div className="flex items-center gap-2">
+        <ThemeToggle />
         <LocaleSwitcher />
-        <Button variant="ghost" size="icon" aria-label="Bildirişlər">
-          <Bell />
-        </Button>
+        <NotificationBell />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="gap-2 px-2">

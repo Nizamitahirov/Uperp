@@ -1,6 +1,6 @@
 {
   "common": {
-    "appName": "Jeans ERP",
+    "appName": "UP ERP",
     "loading": "Loading...",
     "save": "Save",
     "cancel": "Cancel",
@@ -40,16 +40,23 @@
     "bom": "BOM",
     "suppliers": "Suppliers",
     "customers": "Customers",
+    "crm": "CRM",
     "procurement": "Procurement",
     "production": "Production",
     "washing": "Washing",
     "finished_goods": "Finished goods",
+    "planning": "Planning",
     "products": "Product catalog",
+    "catalogs": "Catalog journals",
     "sales": "Sales",
-    "pos": "POS / Cash",
+    "quotations": "Quotations",
+    "pos": "POS",
+    "cash": "Cash",
     "finance": "Finance",
     "reports": "Reports",
+    "audit": "Audit Log",
     "users": "Users",
+    "roles": "Roles",
     "settings": "Settings"
   },
   "materials": {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { listDocs, createDoc, updateDocById, deleteDocById } from '@/lib/firebase/firestore';
@@ -172,8 +173,8 @@ export default function SuppliersPage() {
             <TableBody>
               {filtered.map((s) => (
                 <TableRow key={s.id}>
-                  <TableCell className="font-mono text-xs">{s.code}</TableCell>
-                  <TableCell className="font-medium">{s.name}</TableCell>
+                  <TableCell className="font-mono text-xs"><Link href={`/suppliers/${s.id}`} className="hover:underline">{s.code}</Link></TableCell>
+                  <TableCell className="font-medium"><Link href={`/suppliers/${s.id}`} className="hover:underline">{s.name}</Link></TableCell>
                   <TableCell>{s.contactPerson || '—'}</TableCell>
                   <TableCell>{s.phone || '—'}</TableCell>
                   <TableCell>{s.country || '—'}</TableCell>

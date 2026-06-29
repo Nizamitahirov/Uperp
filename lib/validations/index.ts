@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { MATERIAL_CATEGORIES } from '@/types';
-import { ALL_ROLE_CODES } from '@/lib/rbac/permissions';
 
 /** İstifadəçi yaratma sxemi — 01 §1.4.1 */
 export const userSchema = z.object({
@@ -16,7 +15,7 @@ export const userSchema = z.object({
     .regex(/^\+994\d{9}$/, 'Format: +994XXXXXXXXX')
     .optional()
     .or(z.literal('')),
-  role: z.enum(ALL_ROLE_CODES as [string, ...string[]]),
+  role: z.string().min(1, 'Rol seçin'), // built-in kod və ya custom rol id
   password: z
     .string()
     .min(8, 'Ən azı 8 simvol')
@@ -24,6 +23,19 @@ export const userSchema = z.object({
   isActive: z.boolean().default(true),
 });
 export type UserFormValues = z.infer<typeof userSchema>;
+
+/** İstifadəçi düzəliş sxemi — uid/username/email/createdAt dəyişməz (01 §1.4.4) */
+export const userEditSchema = z.object({
+  fullName: z.string().min(2, 'Ən azı 2 simvol').max(100),
+  phone: z
+    .string()
+    .regex(/^\+994\d{9}$/, 'Format: +994XXXXXXXXX')
+    .optional()
+    .or(z.literal('')),
+  role: z.string().min(1, 'Rol seçin'),
+  isActive: z.boolean().default(true),
+});
+export type UserEditFormValues = z.infer<typeof userEditSchema>;
 
 /** Xam material sxemi — 02_RAW_MATERIAL.md */
 export const rawMaterialSchema = z.object({
@@ -46,6 +58,77 @@ export const rawMaterialSchema = z.object({
   isActive: z.boolean().default(true),
 });
 export type RawMaterialFormValues = z.infer<typeof rawMaterialSchema>;
+
+/** Məhsul sxemi — 10 §10.1 */
+export const productSchema = z.object({
+  modelCode: z.string().min(1, 'Model kodu tələb olunur').max(50),
+  nameAz: z.string().min(2, 'Ad (AZ) tələb olunur').max(150),
+  nameEn: z.string().max(150).optional().or(z.literal('')),
+  category: z.enum(['men', 'women', 'kids']).default('men'),
+  subCategory: z.string().max(60).optional().or(z.literal('')),
+  colorName: z.string().max(60).optional().or(z.literal('')),
+  colorCode: z.string().max(30).optional().or(z.literal('')),
+  washEffect: z.enum(['rinse', 'enzyme', 'stone', 'bleach', 'acid', 'heavy_stone']).optional(),
+  fit: z.enum(['regular', 'slim', 'skinny', 'loose']).optional(),
+  weight: z.string().max(20).optional().or(z.literal('')),
+  season: z.string().max(40).optional().or(z.literal('')),
+  collection: z.string().max(60).optional().or(z.literal('')),
+  sizes: z.array(z.string()).default([]),
+  wholesalePrice: z.coerce.number().min(0).default(0),
+  retailPrice: z.coerce.number().min(0).default(0),
+  status: z.enum(['active', 'draft', 'archived']).default('draft'),
+  descriptionAz: z.string().max(1000).optional().or(z.literal('')),
+  descriptionEn: z.string().max(1000).optional().or(z.literal('')),
+  images: z.array(z.string()).default([]),
+});
+export type ProductFormValues = z.infer<typeof productSchema>;
+
+/** Müştəri sxemi — 04 §4.3 */
+export const customerSchema = z.object({
+  name: z.string().min(2, 'Ad tələb olunur').max(150),
+  companyName: z.string().max(150).optional().or(z.literal('')),
+  type: z.enum(['wholesale', 'retail', 'distributor']).default('wholesale'),
+  taxNumber: z.string().max(50).optional().or(z.literal('')),
+  email: z.string().email('Düzgün email').optional().or(z.literal('')),
+  contactPerson: z.string().max(100).optional().or(z.literal('')),
+  phone: z.string().max(30).optional().or(z.literal('')),
+  address: z.string().max(250).optional().or(z.literal('')),
+  creditLimit: z.coerce.number().min(0).default(0),
+  paymentTermDays: z.coerce.number().min(0).default(0),
+  discountRate: z.coerce.number().min(0).max(100).default(0),
+  segment: z.enum(['VIP', 'new', 'high_volume', 'problem', 'regular']).default('regular'),
+  status: z.enum(['active', 'passive', 'blacklist']).default('active'),
+  notes: z.string().max(500).optional().or(z.literal('')),
+});
+export type CustomerFormValues = z.infer<typeof customerSchema>;
+
+/** PO sətri — 05 §5.3 */
+export const poItemSchema = z.object({
+  materialId: z.string().min(1, 'Material seçin'),
+  materialName: z.string(),
+  materialCode: z.string().optional(),
+  unit: z.string(),
+  quantity: z.coerce.number().positive('Miqdar > 0 olmalıdır'),
+  unitPrice: z.coerce.number().min(0, 'Qiymət mənfi ola bilməz'),
+  discount: z.coerce.number().min(0).max(100).optional(),
+});
+
+/** Purchase Order sxemi — 05 §5.3 */
+export const purchaseOrderSchema = z.object({
+  supplierId: z.string().min(1, 'Təchizatçı seçin'),
+  expectedDeliveryDate: z.string().optional().or(z.literal('')),
+  items: z.array(poItemSchema).min(1, 'Ən azı bir material əlavə edin'),
+  customsFee: z.coerce.number().min(0).default(0),
+  shippingFee: z.coerce.number().min(0).default(0),
+  insuranceFee: z.coerce.number().min(0).default(0),
+  otherFees: z.coerce.number().min(0).default(0),
+  currency: z.string().default('AZN'),
+  exchangeRate: z.coerce.number().positive('Məzənnə > 0').default(1),
+  landedCostAllocation: z.enum(['value', 'quantity']).default('value'),
+  incoterms: z.string().optional().or(z.literal('')),
+  notes: z.string().max(500).optional().or(z.literal('')),
+});
+export type PurchaseOrderFormValues = z.infer<typeof purchaseOrderSchema>;
 
 /** Təchizatçı sxemi — 04_CONTACTS_CRM.md */
 export const supplierSchema = z.object({

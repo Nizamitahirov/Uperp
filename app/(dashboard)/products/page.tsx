@@ -1,5 +1,193 @@
-import { ComingSoon } from '@/components/shared/coming-soon';
+'use client';
 
-export default function Page() {
-  return <ComingSoon title="Məhsul Kataloqu" phase="Faza 6 — AI + Kataloq" />;
+import { useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { orderBy } from 'firebase/firestore';
+import { Pencil, Plus, Search, Trash2, Shirt } from 'lucide-react';
+import { listDocs, createDoc, updateDocById, deleteDocById } from '@/lib/firebase/firestore';
+import { nextNumber } from '@/lib/firebase/counters';
+import { logAudit } from '@/lib/firebase/audit';
+import { useAuth } from '@/components/providers/auth-provider';
+import type { Product } from '@/types';
+import type { ProductFormValues } from '@/lib/validations';
+import { PRODUCT_CATEGORIES, PRODUCT_FITS } from '@/lib/constants';
+import { formatCurrency } from '@/lib/utils/format';
+import { PageHeader } from '@/components/shared/page-header';
+import { EmptyState } from '@/components/shared/empty-state';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { toast } from '@/components/ui/toast';
+import { ProductFormDialog } from './product-form-dialog';
+
+const COLLECTION = 'products';
+
+function toPayload(v: ProductFormValues) {
+  return {
+    modelCode: v.modelCode,
+    name: { az: v.nameAz, en: v.nameEn || '' },
+    category: v.category,
+    subCategory: v.subCategory || null,
+    colorName: v.colorName || null,
+    colorCode: v.colorCode || null,
+    washEffect: v.washEffect || null,
+    fit: v.fit || null,
+    weight: v.weight || null,
+    season: v.season || null,
+    collection: v.collection || null,
+    sizes: v.sizes,
+    wholesalePrice: v.wholesalePrice,
+    retailPrice: v.retailPrice,
+    status: v.status,
+    description: { az: v.descriptionAz || '', en: v.descriptionEn || '' },
+    images: (v.images ?? []).map((url, i) => ({ url, type: i === 0 ? 'main' : 'detail', isPrimary: i === 0 })),
+  };
+}
+
+export default function ProductsPage() {
+  const qc = useQueryClient();
+  const { profile, can } = useAuth();
+  const [search, setSearch] = useState('');
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<Product | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const canCreate = can('products', 'create');
+  const canUpdate = can('products', 'update');
+  const canDelete = can('products', 'delete');
+
+  const { data: products = [], isLoading } = useQuery({
+    queryKey: [COLLECTION],
+    queryFn: () => listDocs<Product>(COLLECTION, [orderBy('createdAt', 'desc')]),
+  });
+
+  const filtered = useMemo(() => {
+    const s = search.trim().toLowerCase();
+    if (!s) return products;
+    return products.filter(
+      (p) => p.modelCode?.toLowerCase().includes(s) || p.name?.az?.toLowerCase().includes(s) || p.sku?.toLowerCase().includes(s),
+    );
+  }, [products, search]);
+
+  const actor = { userId: profile?.uid ?? '', username: profile?.username ?? '' };
+
+  async function handleSubmit(values: ProductFormValues) {
+    setSubmitting(true);
+    try {
+      const payload = toPayload(values);
+      if (editing) {
+        await updateDocById(COLLECTION, editing.id, payload);
+        await logAudit({ ...actor, action: 'UPDATE', entityType: 'Product', entityId: editing.id });
+        toast.success('Məhsul yeniləndi');
+      } else {
+        const sku = await nextNumber('PRD');
+        const id = await createDoc(COLLECTION, { ...payload, sku, cost: 0 });
+        await logAudit({ ...actor, action: 'CREATE', entityType: 'Product', entityId: id });
+        toast.success('Məhsul yaradıldı');
+      }
+      setFormOpen(false);
+      qc.invalidateQueries({ queryKey: [COLLECTION] });
+    } catch (e) {
+      console.error(e);
+      toast.error('Məhsul yadda saxlanmadı');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteDocById(COLLECTION, deleteTarget.id);
+      await logAudit({ ...actor, action: 'DELETE', entityType: 'Product', entityId: deleteTarget.id });
+      toast.success('Məhsul silindi');
+      setDeleteTarget(null);
+      qc.invalidateQueries({ queryKey: [COLLECTION] });
+    } catch {
+      toast.error('Silinmə alınmadı');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div>
+      <PageHeader
+        title="Məhsul Kataloqu"
+        subtitle="Modellər, qiymət və atributlar"
+        action={canCreate && <Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus /> Yeni məhsul</Button>}
+      />
+
+      <div className="mb-4 relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input className="pl-9" placeholder="SKU, model kodu və ya ad..." value={search} onChange={(e) => setSearch(e.target.value)} />
+      </div>
+
+      <Card className="rounded-card">
+        {isLoading ? (
+          <div className="space-y-2 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
+        ) : filtered.length === 0 ? (
+          <EmptyState title="Məhsul tapılmadı" description={search ? 'Nəticə yoxdur' : 'Hələ məhsul əlavə edilməyib'} action={canCreate && !search ? <Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus /> Yeni məhsul</Button> : undefined} />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>SKU</TableHead>
+                <TableHead>Ad</TableHead>
+                <TableHead>Kateqoriya</TableHead>
+                <TableHead>Fit</TableHead>
+                <TableHead className="text-right">Topdan</TableHead>
+                <TableHead className="text-right">Maya</TableHead>
+                <TableHead>Status</TableHead>
+                {(canUpdate || canDelete) && <TableHead className="text-right">Əməliyyat</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((p) => (
+                <TableRow key={p.id}>
+                  <TableCell className="font-mono text-xs">{p.sku}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-8 w-8 items-center justify-center rounded bg-muted"><Shirt className="h-4 w-4 text-muted-foreground" /></span>
+                      <div>
+                        <p className="font-medium leading-none">{p.name?.az}</p>
+                        <p className="text-xs text-muted-foreground">{p.modelCode}</p>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>{PRODUCT_CATEGORIES.find((c) => c.value === p.category)?.label ?? p.category}</TableCell>
+                  <TableCell>{p.fit ? PRODUCT_FITS[p.fit] : '—'}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(p.wholesalePrice, 'AZN')}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(p.cost, 'AZN')}</TableCell>
+                  <TableCell>
+                    <Badge variant={p.status === 'active' ? 'success' : p.status === 'draft' ? 'secondary' : 'outline'}>
+                      {p.status === 'active' ? 'Aktiv' : p.status === 'draft' ? 'Qaralama' : 'Arxiv'}
+                    </Badge>
+                  </TableCell>
+                  {(canUpdate || canDelete) && (
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        {canUpdate && <Button variant="ghost" size="icon" onClick={() => { setEditing(p); setFormOpen(true); }}><Pencil className="h-4 w-4" /></Button>}
+                        {canDelete && <Button variant="ghost" size="icon" className="text-danger" onClick={() => setDeleteTarget(p)}><Trash2 className="h-4 w-4" /></Button>}
+                      </div>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
+
+      <ProductFormDialog open={formOpen} onOpenChange={setFormOpen} initial={editing} onSubmit={handleSubmit} submitting={submitting} />
+      <ConfirmDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)} title="Məhsulu sil" description={`"${deleteTarget?.name?.az}" silinsin?`} onConfirm={handleDelete} loading={deleting} />
+    </div>
+  );
 }

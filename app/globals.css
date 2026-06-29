@@ -2,50 +2,101 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+  UP ERP — Gradex/Birtask vizual dilinə uyğunlaşdırılmış dizayn sistemi.
+  Açıq-fonlu produktivlik estetikası: periwinkle #5B5BF5 primary, yumşaq səthlər
+  (#F7F8FC / #FFFFFF), Montserrat, yumşaq layerli kölgələr, 12px radius. Dark mode.
+*/
+
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 221 83% 53%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222 47% 11%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 221 83% 53%;
-    --radius: 0.5rem;
+    --radius: 0.75rem;
+
+    --background: #f7f8fc;
+    --foreground: #0f1129;
+
+    --card: #ffffff;
+    --card-foreground: #0f1129;
+    --popover: #ffffff;
+    --popover-foreground: #0f1129;
+
+    --primary: #5b5bf5;
+    --primary-foreground: #ffffff;
+    --primary-soft: #eeeefe;
+
+    --secondary: #f2f3f8;
+    --secondary-foreground: #2a2c45;
+    --muted: #f2f3f8;
+    --muted-foreground: #6b6f8a;
+    --accent: #eeeefe;
+    --accent-foreground: #4646d6;
+
+    --destructive: #ff6a6a;
+    --destructive-foreground: #ffffff;
+    --success: #16c098;
+    --success-foreground: #ffffff;
+    --warning: #f5a524;
+    --warning-foreground: #5a3d05;
+    --info: #4dabf7;
+    --info-foreground: #ffffff;
+
+    --border: #e7e9f2;
+    --input: #e7e9f2;
+    --ring: #5b5bf5;
+
+    --sidebar: #ffffff;
+    --sidebar-foreground: #2a2c45;
+    --sidebar-border: #e7e9f2;
+    --sidebar-accent: #f2f3f8;
+
+    --shadow-sm: 0 1px 2px rgba(15, 17, 41, 0.04);
+    --shadow-card: 0 4px 16px -4px rgba(15, 17, 41, 0.08), 0 2px 4px -2px rgba(15, 17, 41, 0.04);
+    --shadow-lg: 0 16px 40px -12px rgba(15, 17, 41, 0.12), 0 4px 8px -4px rgba(15, 17, 41, 0.04);
+    --shadow-glow: 0 8px 24px -6px rgba(91, 91, 245, 0.35);
   }
 
   .dark {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
-    --card: 222 47% 13%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222 47% 13%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217 91% 60%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 217 33% 18%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 18%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 217 33% 18%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 20%;
-    --input: 217 33% 20%;
-    --ring: 224 76% 55%;
+    --background: #0e1024;
+    --foreground: #f2f3fa;
+
+    --card: #181b33;
+    --card-foreground: #f2f3fa;
+    --popover: #181b33;
+    --popover-foreground: #f2f3fa;
+
+    --primary: #6e6cff;
+    --primary-foreground: #ffffff;
+    --primary-soft: rgba(91, 91, 245, 0.16);
+
+    --secondary: #21243d;
+    --secondary-foreground: #d7daea;
+    --muted: #21243d;
+    --muted-foreground: #9094b5;
+    --accent: rgba(91, 91, 245, 0.16);
+    --accent-foreground: #c7c7ff;
+
+    --destructive: #ff7a7a;
+    --destructive-foreground: #1a0808;
+    --success: #1fd0a6;
+    --success-foreground: #07241d;
+    --warning: #f5a524;
+    --warning-foreground: #2a1e06;
+    --info: #4dabf7;
+    --info-foreground: #06182b;
+
+    --border: rgba(255, 255, 255, 0.08);
+    --input: rgba(255, 255, 255, 0.12);
+    --ring: #6e6cff;
+
+    --sidebar: #14162b;
+    --sidebar-foreground: #d7daea;
+    --sidebar-border: rgba(255, 255, 255, 0.07);
+    --sidebar-accent: #21243d;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-card: 0 4px 16px -4px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 16px 40px -12px rgba(0, 0, 0, 0.5);
+    --shadow-glow: 0 8px 24px -6px rgba(110, 108, 255, 0.4);
   }
 }
 
@@ -55,5 +106,26 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+  h1, h2, h3, h4 {
+    letter-spacing: -0.02em;
+  }
+  ::selection {
+    background: var(--primary);
+    color: #fff;
+  }
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--muted-foreground) 35%, transparent);
+    border-radius: 9999px;
   }
 }

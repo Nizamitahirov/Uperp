@@ -108,6 +108,43 @@ const MATRIX: Record<ModuleKey, Partial<Record<RoleCode, PermissionAction[]>>> =
   settings: { director: CRUD },
 };
 
+/** Modul açarları (matris sırası ilə) */
+export const MODULE_KEYS = Object.keys(MATRIX) as ModuleKey[];
+
+/** Modul etiketləri (AZ) — Role Management görünüşü üçün */
+export const MODULE_LABELS: Record<ModuleKey, string> = {
+  dashboard: 'İdarə paneli',
+  users: 'İstifadəçi idarəetməsi',
+  roles: 'Rol idarəetməsi',
+  raw_materials: 'Xam material',
+  bom: 'BOM',
+  suppliers: 'Təchizatçılar',
+  customers: 'Müştərilər / CRM',
+  purchase_orders: 'Satınalma (PO)',
+  grn: 'GRN',
+  production_orders: 'İstehsal sifarişləri',
+  washing: 'Yuyulma',
+  quality_control: 'Keyfiyyət nəzarəti',
+  finished_goods: 'Hazır məhsul',
+  products: 'Məhsul kataloqu',
+  sales_orders: 'Satış sifarişləri',
+  pos: 'POS',
+  cash: 'Kassa',
+  invoices: 'Fakturalar',
+  receivables: 'Debitor (AR)',
+  payables: 'Kreditor (AP)',
+  finance: 'Maliyyə',
+  reports: 'Hesabatlar',
+  notifications: 'Bildirişlər',
+  ai: 'AI Assistant',
+  settings: 'Tənzimləmələr',
+};
+
+/** Verilmiş rol üçün modula aid əməliyyat siyahısı (matris görünüşü üçün) */
+export function getPermissions(role: RoleCode, module: ModuleKey): PermissionAction[] {
+  return MATRIX[module]?.[role] ?? [];
+}
+
 const matrixCache = new Map<string, ActionSet>();
 
 function getActionSet(role: RoleCode, module: ModuleKey): ActionSet {

@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './auth-provider';
+import { PWARegister } from './pwa-register';
 import { Toaster } from '@/components/ui/toast';
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -18,6 +19,7 @@ export function Providers({ children }: { children: ReactNode }) {
       <AuthProvider>
         {children}
         <Toaster />
+        <PWARegister />
       </AuthProvider>
     </QueryClientProvider>
   );

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { listDocs, createDoc, updateDocById, deleteDocById } from '@/lib/firebase/firestore';
@@ -175,8 +176,16 @@ export default function MaterialsPage() {
                 const meta = STOCK_STATUS_META[status];
                 return (
                   <TableRow key={m.id}>
-                    <TableCell className="font-mono text-xs">{m.code}</TableCell>
-                    <TableCell className="font-medium">{m.name}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      <Link href={`/materials/${m.id}`} className="hover:underline">
+                        {m.code}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      <Link href={`/materials/${m.id}`} className="hover:underline">
+                        {m.name}
+                      </Link>
+                    </TableCell>
                     <TableCell>{MATERIAL_CATEGORY_LABELS[m.category] ?? m.category}</TableCell>
                     <TableCell className="text-right">
                       {formatNumber(m.currentStock)} {m.unit}

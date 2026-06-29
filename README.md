@@ -2,7 +2,14 @@
 
 Bu repozitoriya **cins şalvar istehsalı** üçün tam ERP/MES sisteminin texniki spesifikasiyası **və tətbiqidir**.
 
-> 📦 **Tətbiq statusu:** Faza 1 (Təməl) hazırdır — Next.js 14 + Firebase + TypeScript foundation, autentifikasiya (email + Gmail/Google), RBAC (8 rol + səlahiyyət matrisi), dizayn sistemi (Tailwind + shadcn-style komponentlər), responsive sidebar layout, **Xam material** və **Təchizatçı** CRUD modulları, Firestore security rules + indexes. Sonrakı fazalar `16_DEPLOYMENT.md`-dəki yol xəritəsinə əməl edir.
+> 📦 **Tətbiq statusu:** Bütün 6 faza implementasiya edilib (`16_DEPLOYMENT.md` yol xəritəsi):
+>
+> - **Faza 1 — Təməl:** Next.js 14 + Firebase + TypeScript, auth (email + Gmail/Google), RBAC (8 rol + səlahiyyət matrisi), User/Role Management, dizayn sistemi, responsive layout, i18n (AZ/EN).
+> - **Faza 2 — Anbar + Costing:** stok hərəkətləri, FIFO/AVCO + landed cost, PO/GRN, bildiriş sistemi (real-time bell + mərkəz), material detal (cost layers), PO/GRN çap.
+> - **Faza 3 — İstehsal (MES):** məhsul kataloqu + AI description (Groq), size-based BOM + costing, istehsal sifarişi + avtomatik stok çıxımı, yuyulma + itki izləmə, QC, hazır məhsul.
+> - **Faza 4 — Satış:** müştərilər + CRM (Kanban), satış sifarişi + rezervasiya + faktura/AR, POS + kassa, debitor/kreditor (AR/AP) + ödənişlər, geri qaytarma.
+> - **Faza 5 — Maliyyə + Analitika:** xərclər, executive dashboard (real KPI + Recharts + AI insights), hesabatlar (P&L, satış, inventar), overstock bildiriş.
+> - **Faza 6 — AI + Kataloq + Polish:** AI chatbot (RAG-lite), müştəri kataloqu (moda jurnalı) + B2B sifariş + sifariş izləmə, PWA (service worker), tənzimləmələr.
 
 ## ⚡ Quraşdırma (Local)
 
@@ -19,6 +26,22 @@ npm run build                # production build
 (Cloud Functions) istifadə olunur və **heç vaxt client-ə düşmür**.
 
 > ⚠️ `.env.local` git-ə commit OLUNMUR (`.gitignore`-dadır). Sirləri orada saxla.
+
+## 🌱 İlk quraşdırma (Bootstrap)
+
+1. **Firebase Console → Authentication → Get started** → **Email/Password** və **Google** provayderlərini aktiv et.
+2. **Firestore Database** yarat (production mode).
+3. İlk direktor hesabını və default parametrləri yarat:
+   ```bash
+   npm run seed
+   ```
+   Bu skript `director@uperp.az` / `Director@2026` hesabını (Auth + Firestore profil,
+   `role: director`), `settings/global`, default kassa və valyuta məzənnələrini yaradır.
+   Email/parol və adı `SEED_DIRECTOR_EMAIL`, `SEED_DIRECTOR_PASSWORD` env ilə dəyişə bilərsən.
+4. Qaydaları və indeksləri deploy et:
+   ```bash
+   firebase deploy --only firestore:rules,firestore:indexes,storage
+   ```
 
 ---
 

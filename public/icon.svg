@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#1d4ed8"/>
+  <g fill="#ffffff">
+    <!-- Stilizə edilmiş cins şalvar (jeans) -->
+    <path d="M176 120h160a16 16 0 0 1 16 16l18 240a20 20 0 0 1-20 21h-44a20 20 0 0 1-19.6-15.8L256 248l-30.4 133.2A20 20 0 0 1 206 397h-44a20 20 0 0 1-20-21l18-240a16 16 0 0 1 16-16z" opacity="0.95"/>
+    <rect x="176" y="120" width="160" height="34" rx="8" fill="#1d4ed8"/>
+    <rect x="176" y="120" width="160" height="34" rx="8" fill="none" stroke="#ffffff" stroke-width="10"/>
+  </g>
+</svg>

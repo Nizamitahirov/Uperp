@@ -17,7 +17,7 @@ export interface ApprovalRequest {
   assigneeUserName?: string | null;
   level: number;
   message?: string | null;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
   requestedBy?: { uid: string; username: string };
   decidedBy?: { uid: string; username: string } | null;
   decisionNote?: string | null;
@@ -50,6 +50,10 @@ export function listTasks(): Promise<WorkflowTask[]> {
 
 export function decideApproval(id: string, status: 'approved' | 'rejected', by: { uid: string; username: string }, note?: string): Promise<void> {
   return updateDocById('approval_requests', id, { status, decidedBy: by, decisionNote: note ?? null });
+}
+/** Təsdiq tələbini geri çək / ləğv et */
+export function cancelApproval(id: string, by: { uid: string; username: string }): Promise<void> {
+  return updateDocById('approval_requests', id, { status: 'cancelled', decidedBy: by });
 }
 export function completeTask(id: string): Promise<void> {
   return updateDocById('tasks', id, { status: 'done' });

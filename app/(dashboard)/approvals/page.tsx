@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, CheckCircle2, ClipboardList, ExternalLink, Loader2, Stamp, X } from 'lucide-react';
-import { listApprovals, listTasks, decideApproval, completeTask, isMine, type ApprovalRequest, type WorkflowTask } from '@/lib/firebase/approvals';
+import { listApprovals, listTasks, decideApproval, cancelApproval, completeTask, isMine, type ApprovalRequest, type WorkflowTask } from '@/lib/firebase/approvals';
 import { useAuth } from '@/components/providers/auth-provider';
 import { ROLES } from '@/lib/rbac/permissions';
 import { PageHeader } from '@/components/shared/page-header';
@@ -42,6 +42,14 @@ export default function ApprovalsPage() {
     try {
       await decideApproval(a.id, status, actor);
       toast.success(status === 'approved' ? 'Təsdiq edildi' : 'Rədd edildi');
+      qc.invalidateQueries({ queryKey: ['approvals'] });
+    } catch { toast.error('Alınmadı'); } finally { setBusy(null); }
+  }
+  async function cancel(a: ApprovalRequest) {
+    setBusy(a.id);
+    try {
+      await cancelApproval(a.id, actor);
+      toast.success('Təsdiq tələbi ləğv edildi');
       qc.invalidateQueries({ queryKey: ['approvals'] });
     } catch { toast.error('Alınmadı'); } finally { setBusy(null); }
   }
@@ -98,6 +106,7 @@ export default function ApprovalsPage() {
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       {a.actionUrl && a.actionUrl !== '/approvals' && <Button variant="ghost" size="icon" asChild><Link href={a.actionUrl}><ExternalLink className="h-4 w-4" /></Link></Button>}
+                      {(role === 'director' || a.requestedBy?.uid === uid) && <Button variant="ghost" size="sm" onClick={() => cancel(a)} disabled={busy === a.id}>Ləğv et</Button>}
                       <Button variant="outline" size="sm" className="text-danger" onClick={() => decide(a, 'rejected')} disabled={busy === a.id}><X className="h-4 w-4" /> Rədd et</Button>
                       <Button size="sm" onClick={() => decide(a, 'approved')} disabled={busy === a.id}>{busy === a.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Təsdiqlə</Button>
                     </div>
@@ -139,7 +148,7 @@ export default function ApprovalsPage() {
                 <Card key={a.id} className="rounded-card">
                   <CardContent className="flex items-center justify-between gap-3 p-3 text-sm">
                     <div className="min-w-0"><p className="truncate font-medium">{a.entityLabel}</p><p className="text-xs text-muted-foreground">{a.workflowName} · {a.decidedBy?.username ?? ''}</p></div>
-                    <Badge variant={a.status === 'approved' ? 'success' : 'destructive'}>{a.status === 'approved' ? 'Təsdiqlənib' : 'Rədd edilib'}</Badge>
+                    <Badge variant={a.status === 'approved' ? 'success' : a.status === 'cancelled' ? 'secondary' : 'destructive'}>{a.status === 'approved' ? 'Təsdiqlənib' : a.status === 'cancelled' ? 'Ləğv edilib' : 'Rədd edilib'}</Badge>
                   </CardContent>
                 </Card>
               ))}

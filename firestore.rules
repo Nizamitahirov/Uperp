@@ -163,6 +163,16 @@ service cloud.firestore {
       allow create: if signedIn();
       allow update, delete: if false;
     }
+    // Email növbəsi — signed-in yaradır/oxuyur; göndərmə statusunu function yeniləyir
+    match /mail_queue/{id} {
+      allow read: if hasRole(['director','accountant']);
+      allow create, update: if signedIn();
+      allow delete: if hasRole(['director']);
+    }
+    // Delay davam etmələri (server-only, function admin SDK ilə)
+    match /workflow_continuations/{id} {
+      allow read, write: if hasRole(['director']);
+    }
 
     // ── Satış ───────────────────────────────────────────────
     match /quotations/{docId} {

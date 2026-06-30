@@ -318,7 +318,9 @@ export type WorkflowTriggerType =
   | 'grn.received'
   | 'production_order.created'
   | 'production_order.completed'
+  | 'stock.issued'
   | 'stock.below_reorder'
+  | 'cash.payment_out'
   | 'customer.created'
   | 'invoice.overdue'
   | 'catalog.published';
@@ -326,6 +328,7 @@ export type WorkflowTriggerType =
 export type WorkflowActionType =
   | 'approval'
   | 'notify'
+  | 'email'
   | 'assign'
   | 'update_status'
   | 'create_task'
@@ -353,6 +356,10 @@ export interface WorkflowStep {
   newStatus?: string;
   delayHours?: number;
   webhookUrl?: string;
+  // email action
+  emailTo?: string;        // konkret ünvan(lar), vergüllə
+  emailToRole?: string;    // rol üzrə alıcı
+  emailSubject?: string;
   condition?: WorkflowCondition | null;
 }
 
@@ -366,6 +373,8 @@ export interface Workflow {
   triggerCondition?: WorkflowCondition | null;
   steps: WorkflowStep[];
   status: WorkflowStatus;
+  /** Təsdiq rejimi — paralel (hamısı eyni anda) və ya ardıcıl */
+  approvalMode?: 'parallel' | 'sequential';
   channels?: ('app' | 'email')[];
   runCount?: number;
   lastRunAt?: Timestamp | null;

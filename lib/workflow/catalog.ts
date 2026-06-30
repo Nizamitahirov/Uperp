@@ -1,8 +1,8 @@
 /** Workflow trigger & action kataloqu (Power Automate üslubu) */
 import {
   ShoppingCart, RefreshCw, FileText, Receipt, Truck, Factory, CheckCircle2,
-  PackageMinus, UserPlus, AlertTriangle, BookOpen, MousePointerClick,
-  Stamp, Bell, UserCheck, ArrowRightLeft, ListTodo, Sparkles, Webhook, Timer,
+  PackageMinus, PackageX, UserPlus, AlertTriangle, BookOpen, MousePointerClick,
+  Stamp, Bell, Mail, UserCheck, ArrowRightLeft, ListTodo, Sparkles, Webhook, Timer, Banknote,
   type LucideIcon,
 } from 'lucide-react';
 import type { WorkflowActionType, WorkflowTriggerType } from '@/types';
@@ -35,7 +35,9 @@ export const TRIGGERS: TriggerDef[] = [
   { type: 'grn.received', label: 'Mal qəbulu (GRN)', description: 'Material qəbul edildikdə', icon: Truck, fields: [{ key: 'totalQuantity', label: 'Miqdar' }] },
   { type: 'production_order.created', label: 'İstehsal sifarişi yaradıldı', description: 'Yeni istehsal sifarişi', icon: Factory, fields: [{ key: 'totalQuantity', label: 'Miqdar' }, { key: 'priority', label: 'Prioritet' }] },
   { type: 'production_order.completed', label: 'İstehsal tamamlandı', description: 'İstehsal sifarişi bitdikdə', icon: CheckCircle2, fields: [{ key: 'producedQuantity', label: 'İstehsal sayı' }] },
+  { type: 'stock.issued', label: 'Stokdan mal çıxışı', description: 'Material/məhsul stokdan çıxarıldıqda', icon: PackageX, fields: [{ key: 'quantity', label: 'Miqdar' }, { key: 'reason', label: 'Səbəb' }] },
   { type: 'stock.below_reorder', label: 'Stok kritik səviyyədə', description: 'Material reorder nöqtəsindən aşağı düşdükdə', icon: PackageMinus, fields: [{ key: 'currentStock', label: 'Cari stok' }] },
+  { type: 'cash.payment_out', label: 'Kassadan ödəniş çıxışı', description: 'Nağd/bank ödənişi edildikdə', icon: Banknote, fields: [{ key: 'amount', label: 'Məbləğ' }] },
   { type: 'customer.created', label: 'Yeni müştəri', description: 'Müştəri əlavə olunduqda', icon: UserPlus, fields: [{ key: 'segment', label: 'Seqment' }, { key: 'type', label: 'Tip' }] },
   { type: 'invoice.overdue', label: 'Faktura vaxtı keçdi', description: 'Debitor ödənişi gecikdikdə', icon: AlertTriangle, fields: [{ key: 'balance', label: 'Qalıq' }] },
   { type: 'catalog.published', label: 'Kataloq dərc olundu', description: 'Jurnal dərc edildikdə', icon: BookOpen, fields: [] },
@@ -43,7 +45,8 @@ export const TRIGGERS: TriggerDef[] = [
 
 export const ACTIONS: ActionDef[] = [
   { type: 'approval', label: 'Təsdiq tələb et', description: 'Rola və ya şəxsə təsdiq göndər', icon: Stamp, tint: 'bg-primary/10 text-primary' },
-  { type: 'notify', label: 'Bildiriş göndər', description: 'Tətbiqdaxili / email bildiriş', icon: Bell, tint: 'bg-info/10 text-info' },
+  { type: 'notify', label: 'Bildiriş göndər', description: 'Tətbiqdaxili bildiriş', icon: Bell, tint: 'bg-info/10 text-info' },
+  { type: 'email', label: 'Email göndər', description: 'Şəxsə/rola və ya ünvana email', icon: Mail, tint: 'bg-info/10 text-info' },
   { type: 'assign', label: 'Şəxsə təyin et', description: 'Tapşırığı rola və ya şəxsə yönəlt', icon: UserCheck, tint: 'bg-success/10 text-success' },
   { type: 'update_status', label: 'Status dəyiş', description: 'Qeydin statusunu yenilə', icon: ArrowRightLeft, tint: 'bg-warning/10 text-warning' },
   { type: 'create_task', label: 'Tapşırıq yarat', description: 'İcra üçün tapşırıq aç', icon: ListTodo, tint: 'bg-accent text-accent-foreground' },

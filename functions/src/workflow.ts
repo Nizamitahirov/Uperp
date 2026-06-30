@@ -80,6 +80,15 @@ async function runAction(step: Dict, w: Dict, wfId: string, entity: Dict, ctx: C
       await notify({ type: 'WORKFLOW_NOTIFY', severity: 'info', title: { az: w.name, en: w.name }, message: { az: msg, en: msg }, recipientRoles: rolesFor(step), entityType: ctx.entityType, entityId: ctx.entityId, actionUrl: ctx.actionUrl });
       return;
     }
+    case 'email':
+      await db().collection('mail_queue').add({
+        to: step.emailTo ?? null, toRole: step.emailToRole ?? null,
+        subject: step.emailSubject || `${w.name} — ${ctx.entityLabel}`,
+        html: `<p>${step.message || w.name}</p><p><b>${ctx.entityLabel}</b></p>`,
+        entityType: ctx.entityType, entityId: ctx.entityId ?? null,
+        status: 'pending', error: null, sentAt: null, createdAt: FieldValue.serverTimestamp(),
+      });
+      return;
     case 'update_status':
       if (ctx.collection && ctx.entityId && step.newStatus) {
         await db().collection(ctx.collection).doc(ctx.entityId).update({ status: step.newStatus, updatedAt: FieldValue.serverTimestamp() });
@@ -195,3 +204,36 @@ export const wfStockScan = onSchedule({ schedule: 'every day 07:30' }, async () 
 export async function dispatchOverdueInvoice(docId: string, d: Dict): Promise<void> {
   await runWorkflows('invoice.overdue', d, { collection: 'receivables', entityType: 'Receivable', entityId: docId, entityLabel: `Faktura ${d.invoiceNumber ?? ''}`, actionUrl: '/finance', actor: { uid: 'system', username: 'system' } });
 }
+
+// ── Email növbəsi işləyici (Resend provayderi) ───────────────
+export const processMailQueue = onDocumentCreated('mail_queue/{id}', async (e) => {
+  const snap = e.data; if (!snap) return;
+  const m = snap.data() as Dict;
+  if (m.status && m.status !== 'pending') return;
+
+  const key = process.env.RESEND_API_KEY;
+  const from = process.env.MAIL_FROM || 'UP ERP <onboarding@resend.dev>';
+  if (!key) { await snap.ref.update({ status: 'no_provider', error: 'RESEND_API_KEY təyin edilməyib' }); return; }
+
+  // Alıcıları həll et
+  let recipients: string[] = [];
+  if (m.to) recipients = String(m.to).split(',').map((s) => s.trim()).filter(Boolean);
+  if (m.toRole) {
+    const us = await db().collection('users').where('role', '==', m.toRole).get();
+    recipients.push(...us.docs.map((d) => d.data().email).filter(Boolean));
+  }
+  recipients = Array.from(new Set(recipients));
+  if (recipients.length === 0) { await snap.ref.update({ status: 'failed', error: 'Alıcı tapılmadı' }); return; }
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ from, to: recipients, subject: m.subject ?? 'UP ERP', html: m.html ?? '' }),
+    });
+    if (res.ok) await snap.ref.update({ status: 'sent', sentAt: FieldValue.serverTimestamp() });
+    else await snap.ref.update({ status: 'failed', error: `Resend ${res.status}: ${(await res.text()).slice(0, 200)}` });
+  } catch (err) {
+    await snap.ref.update({ status: 'failed', error: String(err) });
+  }
+});

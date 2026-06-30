@@ -38,6 +38,7 @@ export function WorkflowBuilder({ open, onOpenChange, initial, users, onSaved }:
   const [condValue, setCondValue] = useState('');
   const [steps, setSteps] = useState<WorkflowStep[]>([]);
   const [status, setStatus] = useState<WorkflowStatus>('draft');
+  const [approvalMode, setApprovalMode] = useState<'parallel' | 'sequential'>('sequential');
   const [channels, setChannels] = useState<('app' | 'email')[]>(['app']);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [palette, setPalette] = useState(false);
@@ -53,6 +54,7 @@ export function WorkflowBuilder({ open, onOpenChange, initial, users, onSaved }:
     setCondValue(initial?.triggerCondition?.value ?? '');
     setSteps(initial?.steps ?? []);
     setStatus(initial?.status ?? 'draft');
+    setApprovalMode(initial?.approvalMode ?? 'sequential');
     setChannels(initial?.channels ?? ['app']);
     setExpanded(null);
     setPalette(false);
@@ -96,6 +98,7 @@ export function WorkflowBuilder({ open, onOpenChange, initial, users, onSaved }:
         triggerCondition: condField ? { field: condField, op: condOp as never, value: condValue } : null,
         steps,
         status,
+        approvalMode,
         channels,
       };
       if (initial) await updateWorkflow(initial.id, payload);
@@ -238,6 +241,22 @@ export function WorkflowBuilder({ open, onOpenChange, initial, users, onSaved }:
             )}
           </div>
 
+          {/* Təsdiq rejimi */}
+          {steps.some((s) => s.type === 'approval') && (
+            <div>
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Təsdiq rejimi</p>
+              <div className="flex gap-2">
+                {(['sequential', 'parallel'] as const).map((mode) => (
+                  <button key={mode} type="button" onClick={() => setApprovalMode(mode)}
+                    className={cn('rounded-button border px-3 py-1.5 text-sm transition-colors', approvalMode === mode ? 'border-primary bg-primary text-primary-foreground' : 'border-border')}>
+                    {mode === 'sequential' ? 'Ardıcıl (bir-bir)' : 'Paralel (eyni anda)'}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">{approvalMode === 'sequential' ? 'Hər təsdiq əvvəlkindən sonra istənilir.' : 'Bütün təsdiqlər eyni anda istənilir.'}</p>
+            </div>
+          )}
+
           {/* Kanallar */}
           <div>
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Bildiriş kanalları</p>
@@ -309,6 +328,38 @@ function StepEditor({ step, users, onPatch }: { step: WorkflowStep; users: Simpl
             <AiWriteButton label="AI ilə yaz" buildPrompt={() => `ERP avtomatlaşdırma addımı üçün qısa bildiriş/tapşırıq mesajı yaz (Azərbaycan, 1 cümlə). Addım növü: ${step.type}.`} onResult={(t) => onPatch({ message: t })} />
           </div>
           <Input value={step.message ?? ''} onChange={(e) => onPatch({ message: e.target.value })} placeholder="Bildiriş mətni..." />
+        </div>
+      )}
+
+      {step.type === 'email' && (
+        <div className="space-y-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Rola göndər</Label>
+              <Select value={step.emailToRole ?? '__none'} onValueChange={(v) => onPatch({ emailToRole: v === '__none' ? undefined : v })}>
+                <SelectTrigger><SelectValue placeholder="Rol seç" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">— yox —</SelectItem>
+                  {ROLE_OPTIONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">və/və ya ünvan(lar)</Label>
+              <Input value={step.emailTo ?? ''} onChange={(e) => onPatch({ emailTo: e.target.value })} placeholder="ad@nümunə.az, ..." />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Mövzu</Label>
+            <Input value={step.emailSubject ?? ''} onChange={(e) => onPatch({ emailSubject: e.target.value })} placeholder="Email mövzusu" />
+          </div>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Mətn</Label>
+              <AiWriteButton label="AI ilə yaz" buildPrompt={() => `ERP avtomatlaşdırması üçün qısa peşəkar email mətni yaz (Azərbaycan, 2 cümlə). Mövzu: ${step.emailSubject || 'sənəd'}.`} onResult={(t) => onPatch({ message: t })} />
+            </div>
+            <Input value={step.message ?? ''} onChange={(e) => onPatch({ message: e.target.value })} placeholder="Email mətni..." />
+          </div>
         </div>
       )}
 

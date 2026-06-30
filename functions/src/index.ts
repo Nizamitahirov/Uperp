@@ -21,6 +21,7 @@ const db = getFirestore();
 export {
   wfSalesCreated, wfSalesStatus, wfPOCreated, wfExpenseCreated, wfGrnCreated,
   wfProductionCreated, wfCustomerCreated, wfCatalogPublished, wfProcessDelays, wfStockScan,
+  processMailQueue,
 } from './workflow.js';
 import { dispatchOverdueInvoice } from './workflow.js';
 

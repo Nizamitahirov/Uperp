@@ -138,4 +138,8 @@ export async function payPayable(
     );
   }
   await logAudit({ userId: actor.uid, username: actor.username, action: 'UPDATE', entityType: 'Payable', entityId: payable.id });
+  await dispatchWorkflow('cash.payment_out', { amount, supplierName: payable.supplierName, purchaseOrderId: payable.purchaseOrderId }, {
+    entityType: 'Payable', entityId: payable.id, entityLabel: `Ödəniş ${payable.supplierName ?? ''} (${amount} AZN)`,
+    actionUrl: '/finance', actor: { uid: actor.uid, username: actor.username },
+  });
 }

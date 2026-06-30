@@ -7,6 +7,7 @@
 import { serverTimestamp } from 'firebase/firestore';
 import { createDoc, listDocs, updateDocById } from '@/lib/firebase/firestore';
 import { createNotification } from '@/lib/firebase/notifications';
+import { enqueueMail } from '@/lib/firebase/mail';
 import type { Workflow, WorkflowCondition, WorkflowStep, WorkflowTriggerType } from '@/types';
 
 export interface DispatchContext {
@@ -141,6 +142,12 @@ async function runStep(step: WorkflowStep, wf: Workflow, entity: Record<string, 
         entityType: ctx.entityType, entityId: ctx.entityId, actionUrl: ctx.actionUrl,
       });
       return 'AI xülasə yaradıldı';
+    }
+    case 'email': {
+      const subject = step.emailSubject || `${wf.name} — ${ctx.entityLabel}`;
+      const html = `<p>${step.message || wf.name}</p><p><b>${ctx.entityLabel}</b></p>`;
+      await enqueueMail({ to: step.emailTo, toRole: step.emailToRole, subject, html, entityType: ctx.entityType, entityId: ctx.entityId });
+      return 'email növbəyə qoyuldu';
     }
     case 'webhook': {
       if (!step.webhookUrl) return 'webhook URL yox';

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { usePathname } from 'next/navigation';
 import { ArrowRight, BookOpen, Loader2, Sparkles, X } from 'lucide-react';
 import { getCountFromServer, collection } from 'firebase/firestore';
@@ -64,8 +65,8 @@ export function PageGuide() {
         <Sparkles className="h-3.5 w-3.5" /> <span className="hidden lg:inline">AI Bələdçi</span>
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-50">
+      {open && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[100]">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in-0" onClick={() => setOpen(false)} />
           <div className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-border bg-background shadow-soft-lg animate-in slide-in-from-right">
             {/* Header */}
@@ -135,7 +136,8 @@ export function PageGuide() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

@@ -10,6 +10,7 @@ import type { SalesOrder } from '@/types';
 import { SALES_ORDER_STATUS_META } from '@/lib/constants';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
+import { ExportButton } from '@/components/shared/export-button';
 import { EmptyState } from '@/components/shared/empty-state';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -31,6 +32,21 @@ export default function SalesListPage() {
     <div>
       <PageHeader title="Satış Sifarişləri" subtitle="B2B/B2C sifarişlər, rezerv, faktura" action={
         <div className="flex gap-2">
+          <ExportButton
+            filename="satis-sifarisleri"
+            rows={orders}
+            columns={[
+              { header: 'Nömrə', value: 'soNumber' },
+              { header: 'Müştəri', value: (o) => o.customerName ?? '' },
+              { header: 'Kanal', value: 'channel' },
+              { header: 'Ara cəm', value: 'subtotal' },
+              { header: 'Endirim', value: 'discountAmount' },
+              { header: 'ƏDV', value: 'vatAmount' },
+              { header: 'Yekun', value: 'totalAmount' },
+              { header: 'Ödəniş', value: 'paymentStatus' },
+              { header: 'Status', value: 'status' },
+            ]}
+          />
           <Button variant="outline" asChild><Link href="/quotations">Təkliflər</Link></Button>
           <Button variant="outline" asChild><Link href="/deliveries">Çatdırılmalar</Link></Button>
           {canCreate && <Button asChild><Link href="/sales/new"><Plus /> Yeni sifariş</Link></Button>}

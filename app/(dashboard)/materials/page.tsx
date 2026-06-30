@@ -13,6 +13,7 @@ import { MATERIAL_CATEGORY_LABELS } from '@/lib/constants';
 import { getStockStatus, STOCK_STATUS_META } from '@/lib/utils/stock';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
+import { ExportButton } from '@/components/shared/export-button';
 import { EmptyState } from '@/components/shared/empty-state';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Button } from '@/components/ui/button';
@@ -125,11 +126,24 @@ export default function MaterialsPage() {
         title="Xam Material Anbarı"
         subtitle="Material kataloqu, stok və maya dəyəri"
         action={
-          canCreate && (
-            <Button onClick={openCreate}>
-              <Plus /> Yeni material
-            </Button>
-          )
+          <div className="flex gap-2">
+            <ExportButton
+              filename="xam-material"
+              rows={filtered}
+              columns={[
+                { header: 'Kod', value: 'code' },
+                { header: 'Ad', value: 'name' },
+                { header: 'Kateqoriya', value: 'category' },
+                { header: 'Vahid', value: 'unit' },
+                { header: 'Cari stok', value: 'currentStock' },
+                { header: 'Min stok', value: 'minStock' },
+                { header: 'Reorder', value: (m) => m.reorderPoint ?? '' },
+                { header: 'Orta maya', value: (m) => m.avgCost ?? '' },
+                { header: 'Stok dəyəri', value: (m) => m.stockValue ?? '' },
+              ]}
+            />
+            {canCreate && <Button onClick={openCreate}><Plus /> Yeni material</Button>}
+          </div>
         }
       />
 

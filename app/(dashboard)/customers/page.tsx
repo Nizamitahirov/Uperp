@@ -14,6 +14,7 @@ import type { CustomerFormValues } from '@/lib/validations';
 import { CUSTOMER_SEGMENTS, CUSTOMER_TYPES } from '@/lib/constants';
 import { formatCurrency } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
+import { ExportButton } from '@/components/shared/export-button';
 import { EmptyState } from '@/components/shared/empty-state';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Button } from '@/components/ui/button';
@@ -100,6 +101,22 @@ export default function CustomersPage() {
         subtitle="B2B/B2C müştərilər, seqment və kredit"
         action={
           <div className="flex gap-2">
+            <ExportButton
+              filename="musteriler"
+              rows={filtered}
+              columns={[
+                { header: 'Kod', value: 'code' },
+                { header: 'Ad', value: 'name' },
+                { header: 'Şirkət', value: (c) => c.companyName ?? '' },
+                { header: 'VÖEN', value: (c) => c.taxNumber ?? '' },
+                { header: 'Telefon', value: (c) => c.phone ?? '' },
+                { header: 'Email', value: (c) => c.email ?? '' },
+                { header: 'Seqment', value: 'segment' },
+                { header: 'Kredit limiti', value: 'creditLimit' },
+                { header: 'Cari balans (AR)', value: 'currentBalance' },
+                { header: 'Status', value: 'status' },
+              ]}
+            />
             <Button variant="outline" asChild><Link href="/crm"><Handshake className="h-4 w-4" /> CRM / Pipeline</Link></Button>
             {canCreate && <Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus /> Yeni müştəri</Button>}
           </div>

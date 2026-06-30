@@ -13,6 +13,7 @@ import type { ProductFormValues } from '@/lib/validations';
 import { PRODUCT_CATEGORIES, PRODUCT_FITS } from '@/lib/constants';
 import { formatCurrency } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
+import { ExportButton } from '@/components/shared/export-button';
 import { EmptyState } from '@/components/shared/empty-state';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Button } from '@/components/ui/button';
@@ -122,7 +123,27 @@ export default function ProductsPage() {
       <PageHeader
         title="Məhsul Kataloqu"
         subtitle="Modellər, qiymət və atributlar"
-        action={canCreate && <Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus /> Yeni məhsul</Button>}
+        action={
+          <div className="flex gap-2">
+            <ExportButton
+              filename="mehsullar"
+              rows={filtered}
+              columns={[
+                { header: 'SKU', value: 'sku' },
+                { header: 'Model kodu', value: 'modelCode' },
+                { header: 'Ad', value: (p) => p.name?.az ?? '' },
+                { header: 'Kateqoriya', value: (p) => PRODUCT_CATEGORIES.find((c) => c.value === p.category)?.label ?? p.category },
+                { header: 'Fit', value: (p) => (p.fit ? PRODUCT_FITS[p.fit] : '') },
+                { header: 'Rəng', value: (p) => p.colorName ?? '' },
+                { header: 'Topdan', value: (p) => p.wholesalePrice },
+                { header: 'Pərakəndə', value: (p) => p.retailPrice },
+                { header: 'Maya', value: (p) => p.cost },
+                { header: 'Status', value: 'status' },
+              ]}
+            />
+            {canCreate && <Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus /> Yeni məhsul</Button>}
+          </div>
+        }
       />
 
       <div className="mb-4 relative max-w-sm">

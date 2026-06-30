@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AiWriteButton } from '@/components/ai/ai-write-button';
 import { cn } from '@/lib/utils/cn';
 
 interface Props {
@@ -117,7 +118,14 @@ export function CatalogFormDialog({ open, onOpenChange, initial, products, onSub
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>Alt başlıq</Label>
+              <div className="flex items-center justify-between">
+                <Label>Alt başlıq</Label>
+                <AiWriteButton
+                  label="AI ilə yaz"
+                  buildPrompt={() => `Cins/denim moda jurnalı kataloqu üçün cəlbedici, qısa alt başlıq (tagline) yaz (Azərbaycan, 1 qısa cümlə). Kataloq: ${titleAz || 'kolleksiya'}, mövsüm: ${season || ''}, kolleksiya: ${collectionName || ''}. Yalnız tagline-i qaytar.`}
+                  onResult={(t) => setSubtitle(t)}
+                />
+              </div>
               <Input value={subtitle} onChange={(e) => setSubtitle(e.target.value)} placeholder="Indigo nağılı — yeni siluetlər" />
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

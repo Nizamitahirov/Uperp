@@ -12,6 +12,7 @@ import { useAuth } from '@/components/providers/auth-provider';
 import type { Quotation } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
+import { ExportButton } from '@/components/shared/export-button';
 import { EmptyState } from '@/components/shared/empty-state';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -59,7 +60,17 @@ export default function QuotationsPage() {
 
   return (
     <div>
-      <PageHeader title="Qiymət Təklifləri" subtitle="Quotation → satış sifarişi" action={canManage && <Button asChild><Link href="/sales/new"><Plus /> Yeni təklif</Link></Button>} />
+      <PageHeader title="Qiymət Təklifləri" subtitle="Quotation → satış sifarişi" action={
+        <div className="flex gap-2">
+          <ExportButton filename="teklifler" rows={quotes} columns={[
+            { header: 'Nömrə', value: 'quoteNumber' },
+            { header: 'Müştəri', value: (q) => q.customerName ?? '' },
+            { header: 'Məbləğ', value: 'totalAmount' },
+            { header: 'Status', value: 'status' },
+          ]} />
+          {canManage && <Button asChild><Link href="/sales/new"><Plus /> Yeni təklif</Link></Button>}
+        </div>
+      } />
       <Card className="rounded-card">
         {isLoading ? (
           <div className="space-y-2 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>

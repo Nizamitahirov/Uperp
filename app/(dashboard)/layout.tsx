@@ -7,6 +7,7 @@ import { useAuth } from '@/components/providers/auth-provider';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Topbar } from '@/components/layout/topbar';
 import { ChatWidget } from '@/components/ai/chat-widget';
+import { PageGuide } from '@/components/shared/page-guide';
 import { cn } from '@/lib/utils/cn';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -68,6 +69,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
       </div>
       <ChatWidget />
+      <PageGuide />
     </div>
   );
 }

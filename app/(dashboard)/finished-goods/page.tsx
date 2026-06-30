@@ -8,6 +8,7 @@ import { listDocs } from '@/lib/firebase/firestore';
 import type { FinishedGoodStock } from '@/types';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
+import { ExportButton } from '@/components/shared/export-button';
 import { EmptyState } from '@/components/shared/empty-state';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -45,7 +46,19 @@ export default function FinishedGoodsPage() {
 
   return (
     <div>
-      <PageHeader title="Hazır Məhsul Anbarı" subtitle="Variant (ölçü+sort) səviyyəsində stok" />
+      <PageHeader title="Hazır Məhsul Anbarı" subtitle="Variant (ölçü+sort) səviyyəsində stok" action={
+        <ExportButton filename="hazir-mehsul" rows={filtered} columns={[
+          { header: 'SKU', value: 'variantSku' },
+          { header: 'Məhsul', value: (g) => g.productName ?? '' },
+          { header: 'Ölçü', value: 'size' },
+          { header: 'Sort', value: 'grade' },
+          { header: 'Cari stok', value: 'currentStock' },
+          { header: 'Rezerv', value: 'reservedStock' },
+          { header: 'Mövcud', value: 'availableStock' },
+          { header: 'Maya', value: 'unitCost' },
+          { header: 'Pərakəndə', value: 'retailPrice' },
+        ]} />
+      } />
 
       <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Kpi label="Variant" value={String(stats.variants)} />

@@ -12,6 +12,7 @@ import type { AppUser } from '@/types';
 import type { UserFormValues, UserEditFormValues } from '@/lib/validations';
 import { formatDateTime } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
+import { ExportButton } from '@/components/shared/export-button';
 import { EmptyState } from '@/components/shared/empty-state';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Button } from '@/components/ui/button';
@@ -137,11 +138,16 @@ export default function UsersPage() {
         title="İstifadəçi İdarəetməsi"
         subtitle="Daxili işçilər, rollar və status"
         action={
-          canCreate && (
-            <Button onClick={() => { setEditing(null); setFormOpen(true); }}>
-              <Plus /> Yeni istifadəçi
-            </Button>
-          )
+          <div className="flex gap-2">
+            <ExportButton filename="istifadeciler" rows={filtered} columns={[
+              { header: 'Ad Soyad', value: (u) => u.fullName ?? '' },
+              { header: 'İstifadəçi adı', value: (u) => u.username ?? '' },
+              { header: 'Email', value: (u) => u.email ?? '' },
+              { header: 'Rol', value: (u) => u.role ?? '' },
+              { header: 'Status', value: (u) => (u.isActive ? 'Aktiv' : 'Deaktiv') },
+            ]} />
+            {canCreate && <Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus /> Yeni istifadəçi</Button>}
+          </div>
         }
       />
 

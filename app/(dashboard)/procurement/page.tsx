@@ -11,6 +11,7 @@ import type { PurchaseOrder } from '@/types';
 import { PO_STATUS_META } from '@/lib/constants';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
+import { ExportButton } from '@/components/shared/export-button';
 import { EmptyState } from '@/components/shared/empty-state';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,6 +49,14 @@ export default function ProcurementPage() {
         subtitle="PO → GRN → 3-way matching"
         action={
           <div className="flex gap-2">
+            <ExportButton filename="satinalma-po" rows={filtered} columns={[
+              { header: 'Nömrə', value: 'poNumber' },
+              { header: 'Təchizatçı', value: (o) => o.supplierName ?? '' },
+              { header: 'Valyuta', value: 'currency' },
+              { header: 'Məbləğ', value: 'totalAmount' },
+              { header: 'Məbləğ (AZN)', value: 'totalAZN' },
+              { header: 'Status', value: 'status' },
+            ]} />
             <Button variant="outline" asChild>
               <Link href="/procurement/pr">
                 <FileInput className="h-4 w-4" /> PR-lər

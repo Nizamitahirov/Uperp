@@ -43,6 +43,21 @@ export async function explainChart(input: {
   return data.result as { az: string; en: string };
 }
 
+/** Səhifə bələdçisi — AI ilə səhifənin məqsədi, istifadəsi, iş axını və datası (AZ/EN) */
+export async function explainPage(pageInfo: Record<string, unknown>): Promise<{ az: string; en: string }> {
+  const res = await fetch('/api/ai/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ task: 'page_guide', pageInfo }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error ?? 'AI izahı uğursuz');
+  }
+  const data = await res.json();
+  return data.result as { az: string; en: string };
+}
+
 export async function aiPrompt(prompt: string): Promise<string> {
   const res = await fetch('/api/ai/generate', {
     method: 'POST',

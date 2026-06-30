@@ -8,7 +8,7 @@ const TEXT_MODEL = 'llama-3.3-70b-versatile';
 const VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
 
 interface GenerateBody {
-  task: 'product_description' | 'summary' | 'custom' | 'chart_explain';
+  task: 'product_description' | 'summary' | 'custom' | 'chart_explain' | 'page_guide';
   prompt?: string;
   attributes?: Record<string, unknown>;
   imageUrl?: string;
@@ -17,6 +17,8 @@ interface GenerateBody {
   chartType?: string;
   chartData?: unknown;
   context?: string;
+  // page_guide üçün
+  pageInfo?: Record<string, unknown>;
 }
 
 export async function POST(req: NextRequest) {
@@ -34,11 +36,19 @@ export async function POST(req: NextRequest) {
 
   const isProductDesc = body.task === 'product_description';
   const isChartExplain = body.task === 'chart_explain';
+  const isPageGuide = body.task === 'page_guide';
   const useVision = isProductDesc && !!body.imageUrl;
-  const wantsJson = isProductDesc || isChartExplain;
+  const wantsJson = isProductDesc || isChartExplain || isPageGuide;
 
   let messages: unknown[];
-  if (isChartExplain) {
+  if (isPageGuide) {
+    const sys =
+      'Sən UP ERP (cins/denim istehsalı) sisteminin daxili təlimçisisən. İstifadəçiyə bir səhifəni izah edirsən. Cavabı HEKAYƏ formatında, aydın strukturla yaz. Markdown istifadə et: "### Bu səhifə nədir?" (1-2 cümlə məqsəd), "### Necə istifadə olunur?" (nömrəli addımlar), "### İş axınında yeri" (Əvvəlki addım → bu səhifə → Sonrakı addım), "### Datanın mənası" (verilən rəqəmlərin nəyə təsir etdiyi). Sadə, praktiki dil. Cavabı DƏQİQ bu JSON formatında ver: {"az": "...markdown...", "en": "...markdown..."}. Başqa heç nə yazma.';
+    messages = [
+      { role: 'system', content: sys },
+      { role: 'user', content: `Səhifə məlumatı (JSON): ${JSON.stringify(body.pageInfo ?? {}).slice(0, 3000)}. Bu səhifəni istifadəçiyə hekayə formatında izah et.` },
+    ];
+  } else if (isChartExplain) {
     const sys =
       'Sən təcrübəli biznes data analitikisən (cins/denim istehsalı ERP-i). Sənə qrafikin başlığı və datası verilir. Sən qısa, dəqiq, rəqəmlərə əsaslanan izah yazırsan: əsas tendensiya, ən yüksək/aşağı nöqtə, anomaliya və 1 praktiki tövsiyə. 2-4 cümlə. Cavabı DƏQİQ bu JSON formatında ver: {"az": "...", "en": "..."}. az = Azərbaycan dili, en = English. Başqa heç nə yazma.';
     messages = [

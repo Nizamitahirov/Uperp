@@ -8,7 +8,7 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
-const db = getFirestore();
+const db = () => getFirestore();
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 type Dict = Record<string, any>;
@@ -35,7 +35,7 @@ function evalCondition(cond: Dict | null | undefined, entity: Dict): boolean {
 const rolesFor = (s: Dict): string[] => (s.assigneeType === 'role' && s.assigneeRole ? [s.assigneeRole] : ['director']);
 
 async function notify(input: Dict): Promise<void> {
-  await db.collection('notifications').add({ ...input, isRead: false, readBy: [], createdAt: FieldValue.serverTimestamp() });
+  await db().collection('notifications').add({ ...input, isRead: false, readBy: [], createdAt: FieldValue.serverTimestamp() });
 }
 
 async function aiText(prompt: string): Promise<string> {
@@ -54,7 +54,7 @@ async function aiText(prompt: string): Promise<string> {
 async function runAction(step: Dict, w: Dict, wfId: string, entity: Dict, ctx: Ctx): Promise<void> {
   switch (step.type) {
     case 'approval':
-      await db.collection('approval_requests').add({
+      await db().collection('approval_requests').add({
         workflowId: wfId, workflowName: w.name, stepId: step.id,
         entityType: ctx.entityType, entityId: ctx.entityId ?? null, entityLabel: ctx.entityLabel, actionUrl: ctx.actionUrl ?? null,
         assigneeType: step.assigneeType ?? 'role', assigneeRole: step.assigneeRole ?? null,
@@ -66,7 +66,7 @@ async function runAction(step: Dict, w: Dict, wfId: string, entity: Dict, ctx: C
       return;
     case 'assign':
     case 'create_task':
-      await db.collection('tasks').add({
+      await db().collection('tasks').add({
         workflowId: wfId, workflowName: w.name, title: step.message || `${w.name}: ${ctx.entityLabel}`,
         entityType: ctx.entityType, entityId: ctx.entityId ?? null, entityLabel: ctx.entityLabel, actionUrl: ctx.actionUrl ?? null,
         assigneeType: step.assigneeType ?? 'role', assigneeRole: step.assigneeRole ?? null,
@@ -82,7 +82,7 @@ async function runAction(step: Dict, w: Dict, wfId: string, entity: Dict, ctx: C
     }
     case 'update_status':
       if (ctx.collection && ctx.entityId && step.newStatus) {
-        await db.collection(ctx.collection).doc(ctx.entityId).update({ status: step.newStatus, updatedAt: FieldValue.serverTimestamp() });
+        await db().collection(ctx.collection).doc(ctx.entityId).update({ status: step.newStatus, updatedAt: FieldValue.serverTimestamp() });
       }
       return;
     case 'ai_summary': {
@@ -107,7 +107,7 @@ async function runSteps(w: Dict, wfId: string, entity: Dict, ctx: Ctx, startInde
     if (step.condition?.field && !evalCondition(step.condition, entity)) continue;
     if (step.type === 'delay') {
       const runAt = Date.now() + (step.delayHours ?? 0) * 3600 * 1000;
-      await db.collection('workflow_continuations').add({ workflowId: wfId, workflow: w, entity, ctx, nextIndex: i + 1, runAt, createdAt: FieldValue.serverTimestamp() });
+      await db().collection('workflow_continuations').add({ workflowId: wfId, workflow: w, entity, ctx, nextIndex: i + 1, runAt, createdAt: FieldValue.serverTimestamp() });
       return;
     }
     await runAction(step, w, wfId, entity, ctx);
@@ -115,7 +115,7 @@ async function runSteps(w: Dict, wfId: string, entity: Dict, ctx: Ctx, startInde
 }
 
 async function runWorkflows(trigger: string, entity: Dict, ctx: Ctx): Promise<void> {
-  const snap = await db.collection('workflows').where('trigger', '==', trigger).get();
+  const snap = await db().collection('workflows').where('trigger', '==', trigger).get();
   for (const wfDoc of snap.docs) {
     const w = wfDoc.data();
     if (w.status !== 'active') continue;
@@ -126,7 +126,7 @@ async function runWorkflows(trigger: string, entity: Dict, ctx: Ctx): Promise<vo
       results.push({ ok: true });
     } catch (e) { results.push({ error: String(e) }); }
     await wfDoc.ref.update({ runCount: (w.runCount ?? 0) + 1, lastRunAt: FieldValue.serverTimestamp() });
-    await db.collection('workflow_runs').add({ workflowId: wfDoc.id, workflowName: w.name, trigger, entityType: ctx.entityType, entityId: ctx.entityId ?? null, entityLabel: ctx.entityLabel, source: 'server', triggeredBy: ctx.actor, results, createdAt: FieldValue.serverTimestamp() });
+    await db().collection('workflow_runs').add({ workflowId: wfDoc.id, workflowName: w.name, trigger, entityType: ctx.entityType, entityId: ctx.entityId ?? null, entityLabel: ctx.entityLabel, source: 'server', triggeredBy: ctx.actor, results, createdAt: FieldValue.serverTimestamp() });
   }
 }
 
@@ -171,7 +171,7 @@ export const wfCatalogPublished = onDocumentUpdated(opts('catalogs/{id}'), (e) =
 // ── Delay davam etdirici (hər 10 dəqiqə) ─────────────────────
 export const wfProcessDelays = onSchedule({ schedule: 'every 10 minutes' }, async () => {
   const now = Date.now();
-  const snap = await db.collection('workflow_continuations').where('runAt', '<=', now).get();
+  const snap = await db().collection('workflow_continuations').where('runAt', '<=', now).get();
   for (const c of snap.docs) {
     const x = c.data();
     try { await runSteps(x.workflow, x.workflowId, x.entity, x.ctx, x.nextIndex ?? 0); } catch (err) { console.error('delay resume', err); }
@@ -181,7 +181,7 @@ export const wfProcessDelays = onSchedule({ schedule: 'every 10 minutes' }, asyn
 
 // ── Stok kritik səviyyə (gündəlik 07:30) ─────────────────────
 export const wfStockScan = onSchedule({ schedule: 'every day 07:30' }, async () => {
-  const snap = await db.collection('raw_materials').where('isActive', '==', true).get();
+  const snap = await db().collection('raw_materials').where('isActive', '==', true).get();
   for (const m of snap.docs) {
     const d = m.data();
     const reorder = d.reorderPoint ?? d.minStock ?? 0;

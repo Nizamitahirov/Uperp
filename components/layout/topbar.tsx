@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { Inbox, LogOut, Menu, User } from 'lucide-react';
 import { useInbox } from '@/hooks/use-inbox';
+import { PageGuide } from '@/components/shared/page-guide';
 import { useAuth } from '@/components/providers/auth-provider';
 import { logout } from '@/lib/firebase/auth';
 import { getRoleName } from '@/lib/rbac/permissions';
@@ -45,6 +46,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
       </div>
 
       <div className="flex items-center gap-2">
+        <PageGuide />
         <ThemeToggle />
         <LocaleSwitcher />
         <InboxButton />

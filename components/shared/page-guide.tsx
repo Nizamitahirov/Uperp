@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { ArrowRight, BookOpen, Loader2, Sparkles, X } from 'lucide-react';
 import { getCountFromServer, collection } from 'firebase/firestore';
@@ -17,6 +17,14 @@ export function PageGuide() {
   const [loading, setLoading] = useState(false);
   const [ai, setAi] = useState<{ az: string; en: string } | null>(null);
   const [lang, setLang] = useState<'az' | 'en'>('az');
+
+  // Səhifə dəyişəndə hər şeyi sıfırla — hər səhifə üçün yenidən başlasın
+  useEffect(() => {
+    setOpen(false);
+    setAi(null);
+    setLoading(false);
+    setLang('az');
+  }, [pathname]);
 
   if (!guide) return null;
   const { meta } = guide;
@@ -46,13 +54,14 @@ export function PageGuide() {
 
   return (
     <>
-      {/* Floating launcher (sol alt) */}
+      {/* Topbar trigger — sabit, normal yer */}
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-5 left-5 z-40 flex items-center gap-2 rounded-full border border-primary/30 bg-background/90 px-4 py-2.5 text-sm font-medium text-primary shadow-soft-lg backdrop-blur-md transition-all hover:bg-primary/10"
+        className="flex items-center gap-1.5 rounded-button border border-primary/30 bg-primary/5 px-2.5 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+        title="AI Bələdçi — bu səhifə haqqında"
         aria-label="AI bələdçi"
       >
-        <Sparkles className="h-4 w-4" /> <span className="hidden sm:inline">AI Bələdçi</span>
+        <Sparkles className="h-3.5 w-3.5" /> <span className="hidden lg:inline">AI Bələdçi</span>
       </button>
 
       {open && (

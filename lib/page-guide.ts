@@ -70,6 +70,13 @@ export const PAGE_GUIDE: Record<string, PageGuideMeta> = {
     prev: 'Satış proqnozu / sifarişlər', next: 'Satınalma (PR/PO) və ya istehsal',
     affects: 'Satınalma və istehsal qərarlarını istiqamətləndirir.',
   },
+  '/bom': {
+    title: 'BOM — material reçetləri', collection: 'boms',
+    purpose: 'Hər model üçün ölçüyə görə material reçeti və maya dəyərinin hesablanması.',
+    how: ['Məhsul üçün BOM yarat', 'Material və miqdarları ölçüyə görə təyin et', 'Maya avtomatik hesablanır'],
+    prev: 'Material kataloqu', next: 'İstehsal sifarişi',
+    affects: 'İstehsal maya dəyəri və material tələbinə (MRP) əsasdır.',
+  },
   '/products': {
     title: 'Məhsul kataloqu', collection: 'products',
     purpose: 'Modellərin, qiymətlərin və atributların idarəsi.',

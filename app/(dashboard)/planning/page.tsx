@@ -11,6 +11,7 @@ import { computeRequirements } from '@/lib/firebase/production';
 import { aiPrompt } from '@/lib/ai/client';
 import { ChartCard } from '@/components/charts/chart-card';
 import { CHART_COLORS } from '@/components/charts/palette';
+import { ExportButton } from '@/components/shared/export-button';
 import type { BOM, FinishedGoodStock, ProductionOrder, RawMaterial } from '@/types';
 import { formatNumber } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
@@ -126,7 +127,18 @@ export default function PlanningPage() {
             </div>
           )}
           <Card className="rounded-card">
-            <CardHeader><CardTitle className="text-base">Xam material — cari + planlaşdırılmış tələb</CardTitle></CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base">Xam material — cari + planlaşdırılmış tələb</CardTitle>
+              <ExportButton filename="mrp-material" rows={mrp} columns={[
+                { header: 'Material', value: (r) => r.m.name },
+                { header: 'Vahid', value: (r) => r.m.unit },
+                { header: 'Cari stok', value: (r) => r.m.currentStock },
+                { header: 'Plan tələb', value: (r) => r.plannedNeed },
+                { header: 'Proqnoz qalıq', value: (r) => r.forecast },
+                { header: 'Reorder', value: (r) => r.reorder },
+                { header: 'Sifariş tövsiyəsi', value: (r) => r.suggested },
+              ]} />
+            </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader><TableRow>
@@ -168,7 +180,17 @@ export default function PlanningPage() {
             </div>
           )}
           <Card className="rounded-card">
-            <CardHeader><CardTitle className="text-base">Hazır məhsul — istehsal tövsiyəsi</CardTitle></CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base">Hazır məhsul — istehsal tövsiyəsi</CardTitle>
+              <ExportButton filename="istehsal-tovsiyesi" rows={demand} columns={[
+                { header: 'Variant', value: (r) => r.f.variantSku },
+                { header: 'Məhsul', value: (r) => r.f.productName ?? '' },
+                { header: 'Mövcud', value: (r) => r.avail },
+                { header: 'Reorder', value: (r) => r.reorder },
+                { header: 'Maksimum', value: (r) => r.f.maxStock },
+                { header: 'İstehsal tövsiyəsi', value: (r) => r.recommend },
+              ]} />
+            </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader><TableRow>

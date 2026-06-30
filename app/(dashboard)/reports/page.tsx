@@ -14,6 +14,7 @@ import { buildAging } from '@/lib/utils/aging';
 import { getStockStatus } from '@/lib/utils/stock';
 import { ChartCard } from '@/components/charts/chart-card';
 import { CHART_COLORS } from '@/components/charts/palette';
+import { ExportButton } from '@/components/shared/export-button';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
@@ -219,7 +220,15 @@ export default function ReportsPage() {
           </div>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <Card className="rounded-card lg:col-span-2">
-              <CardHeader><CardTitle className="text-base">Top müştərilər (gəlir / sifariş / orta çek)</CardTitle></CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-base">Top müştərilər (gəlir / sifariş / orta çek)</CardTitle>
+                <ExportButton filename="top-musteriler" rows={customers?.top ?? []} columns={[
+                  { header: 'Müştəri', value: 'name' },
+                  { header: 'Sifariş', value: 'orders' },
+                  { header: 'Orta çek', value: 'aov' },
+                  { header: 'Gəlir', value: 'revenue' },
+                ]} />
+              </CardHeader>
               <CardContent className="p-0">
                 <Table>
                   <TableHeader><TableRow><TableHead>Müştəri</TableHead><TableHead className="text-right">Sifariş</TableHead><TableHead className="text-right">Orta çek</TableHead><TableHead className="text-right">Gəlir</TableHead></TableRow></TableHeader>
@@ -258,7 +267,14 @@ export default function ReportsPage() {
             </ChartCard>
           </div>
           <Card className="rounded-card">
-            <CardHeader><CardTitle className="text-base">Məhsul üzrə satış</CardTitle></CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base">Məhsul üzrə satış</CardTitle>
+              <ExportButton filename="mehsul-uzre-satis" rows={salesByProduct} columns={[
+                { header: 'Məhsul', value: 'name' },
+                { header: 'Ədəd', value: 'qty' },
+                { header: 'Gəlir', value: 'revenue' },
+              ]} />
+            </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader><TableRow><TableHead>Məhsul</TableHead><TableHead className="text-right">Ədəd</TableHead><TableHead className="text-right">Gəlir</TableHead></TableRow></TableHeader>

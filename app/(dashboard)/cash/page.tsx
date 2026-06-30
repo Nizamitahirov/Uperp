@@ -11,6 +11,7 @@ import type { CashRegister, CashTransaction } from '@/types';
 import { CASH_IN_CATEGORIES, CASH_OUT_CATEGORIES } from '@/lib/constants';
 import { formatCurrency, formatDateTime } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
+import { ExportButton } from '@/components/shared/export-button';
 import { EmptyState } from '@/components/shared/empty-state';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -70,12 +71,23 @@ export default function CashPage() {
       <PageHeader
         title="Kassa"
         subtitle="Nağd və bank vəsaitləri"
-        action={canManage && (
+        action={
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setRegOpen(true)}><Plus /> Kassa</Button>
-            <Button onClick={() => setTxOpen(true)} disabled={registers.length === 0}><Plus /> Əməliyyat</Button>
+            <ExportButton filename="kassa-emeliyyatlari" rows={transactions} columns={[
+              { header: 'Tarix', value: (t) => formatDateTime(tsMillis(t.createdAt)) },
+              { header: 'Kassa', value: (t) => t.registerName ?? '' },
+              { header: 'Növ', value: (t) => (t.type === 'in' ? 'Daxilolma' : 'Çıxış') },
+              { header: 'Kateqoriya', value: 'category' },
+              { header: 'Məbləğ', value: 'amount' },
+              { header: 'Valyuta', value: 'currency' },
+              { header: 'Təsvir', value: (t) => t.description ?? '' },
+            ]} />
+            {canManage && <>
+              <Button variant="outline" onClick={() => setRegOpen(true)}><Plus /> Kassa</Button>
+              <Button onClick={() => setTxOpen(true)} disabled={registers.length === 0}><Plus /> Əməliyyat</Button>
+            </>}
           </div>
-        )}
+        }
       />
 
       <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -15,6 +15,7 @@ import { buildAging } from '@/lib/utils/aging';
 import { ChartCard } from '@/components/charts/chart-card';
 import { CHART_COLORS } from '@/components/charts/palette';
 import { AiWriteButton } from '@/components/ai/ai-write-button';
+import { ExportButton } from '@/components/shared/export-button';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
 import { EmptyState } from '@/components/shared/empty-state';
@@ -148,6 +149,17 @@ export default function FinancePage() {
         </TabsList>
 
         <TabsContent value="ar">
+          <div className="mb-2 flex justify-end">
+            <ExportButton filename="debitor-ar" rows={receivables} columns={[
+              { header: 'Müştəri', value: (r) => r.customerName ?? '' },
+              { header: 'Faktura', value: (r) => r.invoiceNumber ?? '' },
+              { header: 'Ödəniş tarixi', value: (r) => formatDate(tsMillis(r.dueDate)) },
+              { header: 'Məbləğ', value: 'amount' },
+              { header: 'Ödənilib', value: 'paidAmount' },
+              { header: 'Qalıq', value: 'balance' },
+              { header: 'Status', value: 'status' },
+            ]} />
+          </div>
           <Card className="rounded-card">
             {receivables.length === 0 ? <EmptyState title="Debitor yoxdur" description="Çatdırılmış sifarişlərdən yaranır" /> : (
               <Table>
@@ -177,6 +189,17 @@ export default function FinancePage() {
         </TabsContent>
 
         <TabsContent value="ap">
+          <div className="mb-2 flex justify-end">
+            <ExportButton filename="kreditor-ap" rows={payables} columns={[
+              { header: 'Təchizatçı', value: (p) => p.supplierName ?? '' },
+              { header: 'Faktura', value: (p) => p.invoiceNumber ?? '' },
+              { header: 'Ödəniş tarixi', value: (p) => formatDate(tsMillis(p.dueDate)) },
+              { header: 'Məbləğ', value: 'amount' },
+              { header: 'Ödənilib', value: 'paidAmount' },
+              { header: 'Qalıq', value: 'balance' },
+              { header: 'Status', value: 'status' },
+            ]} />
+          </div>
           <Card className="rounded-card">
             {payables.length === 0 ? <EmptyState title="Kreditor yoxdur" description="GRN qəbullarından yaranır" /> : (
               <Table>
@@ -204,7 +227,14 @@ export default function FinancePage() {
         </TabsContent>
 
         <TabsContent value="exp">
-          <div className="mb-3 flex justify-end">
+          <div className="mb-3 flex justify-end gap-2">
+            <ExportButton filename="xercler" rows={expenses} columns={[
+              { header: '№', value: (e) => (e as { expenseNumber?: string }).expenseNumber ?? '' },
+              { header: 'Kateqoriya', value: (e) => EXPENSE_CATEGORIES[e.category] ?? e.category },
+              { header: 'Təsvir', value: (e) => e.description ?? '' },
+              { header: 'Məbləğ', value: 'amount' },
+              { header: 'Status', value: (e) => (e as { approvalStatus?: string }).approvalStatus ?? '' },
+            ]} />
             {canManage && <Button size="sm" onClick={() => setExpOpen(true)}>+ Xərc</Button>}
           </div>
           <Card className="rounded-card">

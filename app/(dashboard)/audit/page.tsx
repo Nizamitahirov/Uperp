@@ -8,6 +8,7 @@ import { listDocs } from '@/lib/firebase/firestore';
 import type { AuditLog } from '@/types';
 import { formatDateTime } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
+import { ExportButton } from '@/components/shared/export-button';
 import { EmptyState } from '@/components/shared/empty-state';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -43,7 +44,15 @@ export default function AuditPage() {
 
   return (
     <div>
-      <PageHeader title="Audit Log" subtitle="Sistem əməliyyatları tarixçəsi (kim, nə, nə vaxt)" />
+      <PageHeader title="Audit Log" subtitle="Sistem əməliyyatları tarixçəsi (kim, nə, nə vaxt)" action={
+        <ExportButton filename="audit-log" rows={filtered} columns={[
+          { header: 'Vaxt', value: (l) => formatDateTime(tsMillis(l.timestamp)) },
+          { header: 'İstifadəçi', value: (l) => l.username ?? '' },
+          { header: 'Əməliyyat', value: 'action' },
+          { header: 'Obyekt', value: 'entityType' },
+          { header: 'ID', value: 'entityId' },
+        ]} />
+      } />
 
       <div className="mb-4 flex flex-wrap gap-2">
         <div className="relative max-w-sm flex-1">

@@ -8,6 +8,7 @@ import { listDocs } from '@/lib/firebase/firestore';
 import type { Delivery } from '@/types';
 import { formatDate } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
+import { ExportButton } from '@/components/shared/export-button';
 import { EmptyState } from '@/components/shared/empty-state';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -32,7 +33,16 @@ export default function DeliveriesPage() {
   return (
     <div>
       <Button variant="ghost" className="mb-2" asChild><Link href="/sales"><ArrowLeft className="h-4 w-4" /> Satış</Link></Button>
-      <PageHeader title="Çatdırılmalar" subtitle="Sifariş çatdırılma sənədləri" />
+      <PageHeader title="Çatdırılmalar" subtitle="Sifariş çatdırılma sənədləri" action={
+        <ExportButton filename="catdirilmalar" rows={rows} columns={[
+          { header: 'Çatdırılma №', value: 'deliveryNumber' },
+          { header: 'Sifariş №', value: (d) => d.soNumber ?? '' },
+          { header: 'Müştəri', value: (d) => d.customerName ?? '' },
+          { header: 'Kuryer', value: (d) => d.courier ?? '' },
+          { header: 'Yük sayı', value: (d) => d.packagesCount ?? '' },
+          { header: 'Status', value: 'status' },
+        ]} />
+      } />
       <Card className="rounded-card">
         {isLoading ? (
           <div className="space-y-2 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>

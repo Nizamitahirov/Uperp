@@ -8,6 +8,7 @@ import type { WashingOrder } from '@/types';
 import { WASH_TYPES, WASHING_STATUS_META } from '@/lib/constants';
 import { formatDate } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
+import { ExportButton } from '@/components/shared/export-button';
 import { EmptyState } from '@/components/shared/empty-state';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -26,7 +27,18 @@ export default function WashingListPage() {
 
   return (
     <div>
-      <PageHeader title="Yuyulma Sifarişləri" subtitle="Yuyulma izləməsi və itki faizi" />
+      <PageHeader title="Yuyulma Sifarişləri" subtitle="Yuyulma izləməsi və itki faizi" action={
+        <ExportButton filename="yuyulma" rows={orders} columns={[
+          { header: 'Yuyulma №', value: 'washNumber' },
+          { header: 'İstehsal №', value: (w) => w.productionOrderNumber ?? '' },
+          { header: 'Tip', value: 'washType' },
+          { header: 'Emalçı', value: (w) => w.laundryName ?? (w.isOutsourced ? 'Kənar' : 'Daxili') },
+          { header: 'Göndərilən', value: 'sentQuantity' },
+          { header: 'Qayıdan', value: (w) => w.returnedQuantity ?? '' },
+          { header: 'İtki %', value: (w) => w.lossPercentage ?? '' },
+          { header: 'Status', value: 'status' },
+        ]} />
+      } />
       <Card className="rounded-card">
         {isLoading ? (
           <div className="space-y-2 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>

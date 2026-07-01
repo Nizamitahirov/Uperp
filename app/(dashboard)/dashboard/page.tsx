@@ -9,8 +9,8 @@ import {
   RadialBarChart, RadialBar,
 } from 'recharts';
 import {
-  TrendingUp, Wallet, Package, Factory, ShoppingCart, AlertTriangle, Sparkles, Loader2,
-  Plus, ArrowRight, ArrowUpRight, Truck, Droplets, ClipboardCheck, Boxes, CreditCard, Receipt,
+  Wallet, Package, Factory, ShoppingCart, AlertTriangle, Sparkles, Loader2,
+  Plus, ArrowRight, ArrowUpRight, Droplets, Boxes, MoreVertical,
 } from 'lucide-react';
 import { listDocs } from '@/lib/firebase/firestore';
 import { aiPrompt } from '@/lib/ai/client';
@@ -20,7 +20,7 @@ import { useAuth } from '@/components/providers/auth-provider';
 import { getRoleName } from '@/lib/rbac/permissions';
 import type {
   SalesOrder, Receivable, Payable, RawMaterial, FinishedGoodStock, ProductionOrder,
-  Delivery, PurchaseOrder, Customer, WashingOrder,
+  Delivery, PurchaseOrder, Customer, WashingOrder, Product,
 } from '@/types';
 import { getStockStatus } from '@/lib/utils/stock';
 import { buildAging } from '@/lib/utils/aging';
@@ -47,7 +47,7 @@ export default function DashboardPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-data'],
     queryFn: async () => {
-      const [sales, receivables, payables, materials, finished, production, deliveries, purchaseOrders, customers, washing] = await Promise.all([
+      const [sales, receivables, payables, materials, finished, production, deliveries, purchaseOrders, customers, washing, products] = await Promise.all([
         listDocs<SalesOrder>('sales_orders', []),
         listDocs<Receivable>('receivables', []),
         listDocs<Payable>('payables', []),
@@ -58,8 +58,9 @@ export default function DashboardPage() {
         listDocs<PurchaseOrder>('purchase_orders', []),
         listDocs<Customer>('customers', []),
         listDocs<WashingOrder>('washing_orders', []),
+        listDocs<Product>('products', []),
       ]);
-      return { sales, receivables, payables, materials, finished, production, deliveries, purchaseOrders, customers, washing };
+      return { sales, receivables, payables, materials, finished, production, deliveries, purchaseOrders, customers, washing, products };
     },
   });
 
@@ -139,6 +140,29 @@ export default function DashboardPage() {
     return Array.from(map.entries()).map(([name, qty]) => ({ name: name.slice(0, 14), qty })).sort((a, b) => b.qty - a.qty).slice(0, 6);
   }, [data]);
 
+  // "Davam et" kartları — ən çox satılan modellər (şəkil + satış progress)
+  const featured = useMemo(() => {
+    if (!data) return [];
+    const soldByName = new Map<string, number>();
+    for (const s of data.sales) for (const it of s.items ?? []) soldByName.set(it.productName, (soldByName.get(it.productName) ?? 0) + it.quantity);
+    const list = data.products
+      .filter((p) => p.status === 'active')
+      .map((p) => ({ p, sold: soldByName.get(p.name?.az ?? '') ?? 0 }))
+      .sort((a, b) => b.sold - a.sold)
+      .slice(0, 6);
+    const maxSold = Math.max(1, ...list.map((x) => x.sold));
+    return list.map((x) => ({
+      id: x.p.id,
+      name: x.p.name?.az ?? '',
+      category: x.p.category,
+      image: x.p.images?.find((i) => i.isPrimary)?.url ?? x.p.images?.[0]?.url,
+      price: x.p.wholesalePrice,
+      progress: Math.round((x.sold / maxSold) * 100),
+      sold: x.sold,
+    }));
+  }, [data]);
+  const marginPct = m && m.monthSales > 0 ? (m.netProfit / m.monthSales) * 100 : 0;
+
   // Donut — kanal üzrə satış
   const channelData = useMemo(() => {
     if (!data) return [];
@@ -188,40 +212,142 @@ export default function DashboardPage() {
   const firstName = (profile?.fullName || profile?.username || 'İstifadəçi').split(' ')[0];
   const todayStr = now.toLocaleDateString('az-AZ', { weekday: 'long', day: 'numeric', month: 'long' });
 
+  const heroCta = HERO_CTA[role] ?? { href: '/dashboard', label: 'Panelə bax' };
+
   return (
     <div>
-      {/* ── HERO greeting banner ── */}
-      <section className="relative mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-[#5B5BF5] via-[#6d4af3] to-[#8b3df0] p-6 text-white shadow-[0_24px_70px_-24px_rgba(91,91,245,0.65)] lg:p-8">
-        <div aria-hidden className="pointer-events-none absolute inset-0">
-          <div className="absolute -right-16 -top-24 h-72 w-72 rounded-full bg-white/15 blur-3xl" />
-          <div className="absolute -bottom-24 left-1/4 h-64 w-64 rounded-full bg-fuchsia-400/20 blur-3xl" />
-          <div className="absolute inset-0 opacity-[0.07] [background-image:radial-gradient(circle_at_1px_1px,#fff_1px,transparent_0)] [background-size:22px_22px]" />
-          <Sparkles className="absolute right-10 top-8 h-16 w-16 text-white/15" />
-          <Sparkles className="absolute right-40 top-20 h-8 w-8 text-white/10" />
-        </div>
-        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="font-mono text-[11px] font-medium uppercase tracking-[0.3em] text-white/70">{todayStr}</p>
-            <h1 className="mt-2 text-3xl font-bold leading-tight tracking-tight lg:text-[2.6rem]">{greet}, {firstName} <span className="inline-block">🔥</span></h1>
-            <p className="mt-1.5 text-sm text-white/75">{getRoleName(role)} · davam et, hədəfə çatmağa az qalıb!</p>
-            <div className="mt-5"><QuickActions role={role} glass /></div>
-          </div>
-          {m && (
-            <div className="flex shrink-0 gap-3">
-              <HeroStat label="Bu gün satış" value={formatCurrency(m.todaySales, 'AZN')} />
-              <HeroStat label="Bu ay satış" value={formatCurrency(m.monthSales, 'AZN')} highlight />
-            </div>
-          )}
-        </div>
-      </section>
-
       {isLoading || !m ? (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-28 w-full rounded-2xl" />)}</div>
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <Skeleton className="h-[75vh] w-full rounded-3xl" />
+          <Skeleton className="hidden h-[75vh] w-full rounded-3xl lg:block" />
+        </div>
       ) : (
         <>
-          {/* ── Rol-spesifik KPI sətri (11.2) ── */}
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <RoleKpis role={role} m={m} />
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+            {/* ═══════════ LEFT ═══════════ */}
+            <div className="min-w-0 space-y-6">
+              {/* HERO */}
+              <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#6b5cf2] via-[#6a4cf3] to-[#8b3df0] p-7 text-white shadow-[0_24px_70px_-24px_rgba(91,91,245,0.6)] lg:p-9">
+                <div aria-hidden className="pointer-events-none absolute inset-0">
+                  <Sparkles className="absolute right-8 top-4 h-40 w-40 text-white/[0.12]" strokeWidth={1} />
+                  <Sparkles className="absolute right-44 top-24 h-16 w-16 text-white/[0.09]" strokeWidth={1} />
+                  <div className="absolute -right-20 -top-24 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
+                </div>
+                <div className="relative max-w-xl">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/70">UP ERP · {getRoleName(role)}</p>
+                  <h1 className="mt-3 text-3xl font-bold leading-[1.1] tracking-tight lg:text-[2.7rem]">{greet}, {firstName} <span>🔥</span></h1>
+                  <p className="mt-2 text-sm text-white/75">{todayStr} · davam et, bu ayın hədəfinə çatmağa az qalıb!</p>
+                  <Link href={heroCta.href} className="mt-6 inline-flex items-center gap-2.5 rounded-full bg-[#0d0d14] py-2.5 pl-5 pr-2.5 text-sm font-semibold text-white transition-transform hover:scale-105">
+                    {heroCta.label}
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15"><ArrowRight className="h-4 w-4" /></span>
+                  </Link>
+                </div>
+              </section>
+
+              {/* 3 mini progress cards */}
+              <div className="grid gap-4 sm:grid-cols-3">
+                {miniStats(role, m).map((s, i) => <StatMini key={i} {...s} />)}
+              </div>
+
+              {/* Ən çox satılan (carousel) */}
+              <div>
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="text-xl font-bold tracking-tight">Ən çox satılan modellər</h2>
+                  <Link href="/products" className="flex items-center gap-1 text-sm font-medium text-primary hover:underline">Hamısı <ArrowUpRight className="h-4 w-4" /></Link>
+                </div>
+                {featured.length === 0 ? (
+                  <Card className="rounded-card"><Empty text="Hələ satış datası yoxdur" /></Card>
+                ) : (
+                  <div className="flex gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {featured.map((f) => <FeatureCard key={f.id} item={f} />)}
+                  </div>
+                )}
+              </div>
+
+              {/* Son sifarişlər */}
+              <Card className="rounded-card">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className="text-base">Son sifarişlər</CardTitle>
+                  <Link href="/sales" className="text-sm font-medium text-primary hover:underline">See all</Link>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {m.recentOrders.length === 0 ? <Empty text="Sifariş yoxdur" /> : (
+                    <div>
+                      <div className="grid grid-cols-[1.5fr_1fr_1fr_auto] gap-2 border-b border-border px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        <span>Müştəri</span><span>Kanal</span><span>Status</span><span>Əməliyyat</span>
+                      </div>
+                      {m.recentOrders.slice(0, 5).map((s) => (
+                        <div key={s.id} className="grid grid-cols-[1.5fr_1fr_1fr_auto] items-center gap-2 border-b border-border/50 px-5 py-2.5 text-sm last:border-0">
+                          <div className="flex items-center gap-2 truncate">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">{(s.customerName ?? '?').slice(0, 2).toUpperCase()}</span>
+                            <span className="min-w-0"><span className="block truncate font-medium">{s.customerName ?? '—'}</span><span className="block truncate text-xs text-muted-foreground">{s.soNumber}</span></span>
+                          </div>
+                          <span className="text-muted-foreground">{s.channel}</span>
+                          <span><Badge variant={SALES_ORDER_STATUS_META[s.status]?.variant ?? 'secondary'}>{SALES_ORDER_STATUS_META[s.status]?.label ?? s.status}</Badge></span>
+                          <Link href={`/sales/${s.id}`} className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-primary transition-colors hover:bg-primary/10"><ArrowUpRight className="h-4 w-4" /></Link>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* ═══════════ RIGHT — Statistik ═══════════ */}
+            <aside className="space-y-5">
+              {/* Avatar ring + greeting */}
+              <Card className="rounded-card">
+                <CardHeader className="flex flex-row items-center justify-between pb-0">
+                  <CardTitle className="text-base">Statistik</CardTitle>
+                  <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent className="flex flex-col items-center pt-4 text-center">
+                  <AvatarRing name={firstName} avatarUrl={profile?.avatarUrl} percent={Math.round(marginPct)} />
+                  <p className="mt-4 text-lg font-bold">{greet.replace('ınız', 'ın')}, {firstName} 🔥</p>
+                  <p className="text-xs text-muted-foreground">Hədəfə çatmaq üçün davam et!</p>
+                </CardContent>
+              </Card>
+
+              {/* Aylıq satış bar chart */}
+              <Card className="rounded-card">
+                <CardHeader className="pb-0"><CardTitle className="text-base">Aylıq satış</CardTitle></CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <BarChart data={salesTrend} barSize={22}>
+                      <defs>
+                        <linearGradient id="miniBar" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#7c6cf5" /><stop offset="100%" stopColor="#5B5BF5" /></linearGradient>
+                      </defs>
+                      <XAxis dataKey="month" fontSize={11} tickLine={false} axisLine={false} />
+                      <YAxis fontSize={11} tickLine={false} axisLine={false} width={28} />
+                      <Tooltip formatter={(v: number) => formatCurrency(v, 'AZN')} cursor={{ fill: 'rgba(91,91,245,0.06)' }} />
+                      <Bar dataKey="value" radius={[8, 8, 4, 4]}>
+                        {salesTrend.map((d, i) => {
+                          const max = Math.max(...salesTrend.map((x) => x.value));
+                          return <Cell key={i} fill={d.value === max ? '#5B5BF5' : 'url(#miniBar)'} fillOpacity={d.value === max ? 1 : 0.45} />;
+                        })}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Top müştərilər */}
+              <Card className="rounded-card">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className="text-base">Top müştərilər</CardTitle>
+                  <Link href="/customers" className="text-xs font-medium text-primary hover:underline">See all</Link>
+                </CardHeader>
+                <CardContent className="space-y-1">
+                  {m.topCustomers.length === 0 ? <Empty text="Müştəri satışı yoxdur" /> : m.topCustomers.slice(0, 5).map((c) => (
+                    <div key={c.name} className="flex items-center gap-3 border-b border-border/50 py-2 last:border-0">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#5B5BF5] to-[#8b3df0] text-xs font-bold text-white">{c.name.slice(0, 2).toUpperCase()}</span>
+                      <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{c.name}</p><p className="text-xs text-muted-foreground">Müştəri</p></div>
+                      <span className="shrink-0 text-sm font-bold text-primary">{formatCurrency(c.revenue, 'AZN')}</span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </aside>
           </div>
 
           {/* ── Qrafiklər (direktor + satış) — zəngin tiplər + AI izah ── */}
@@ -371,91 +497,101 @@ interface Metrics {
   topCustomers: { name: string; revenue: number }[]; recentOrders: SalesOrder[]; customerCount: number;
 }
 
-function QuickActions({ role, glass }: { role: string; glass?: boolean }) {
-  const actions: Record<string, { href: string; label: string; icon: typeof Plus }[]> = {
-    director: [{ href: '/sales/new', label: 'Satış', icon: Plus }, { href: '/pos', label: 'POS', icon: ShoppingCart }],
-    sales: [{ href: '/sales/new', label: 'Yeni satış', icon: Plus }, { href: '/quotations', label: 'Təklif', icon: Receipt }],
-    cashier: [{ href: '/pos', label: 'POS', icon: ShoppingCart }, { href: '/cash', label: 'Kassa', icon: Wallet }],
-    accountant: [{ href: '/finance', label: 'Ödəniş qeyd et', icon: CreditCard }, { href: '/finance', label: 'Xərc', icon: Receipt }],
-    warehouse: [{ href: '/procurement/grn', label: 'GRN', icon: Truck }, { href: '/materials', label: 'Material', icon: Package }],
-    production: [{ href: '/production/new', label: 'İstehsal sifarişi', icon: Plus }],
-    supply: [{ href: '/procurement/new', label: 'Yeni PO', icon: Plus }, { href: '/procurement/pr', label: 'PR', icon: ClipboardCheck }],
-  };
-  const list = actions[role] ?? [];
-  if (list.length === 0) return null;
+const HERO_CTA: Record<string, { href: string; label: string }> = {
+  director: { href: '/sales/new', label: 'Yeni satış' },
+  sales: { href: '/sales/new', label: 'Yeni satış' },
+  cashier: { href: '/pos', label: 'POS aç' },
+  accountant: { href: '/finance', label: 'Maliyyəyə bax' },
+  warehouse: { href: '/procurement/grn', label: 'GRN qəbulu' },
+  production: { href: '/production/new', label: 'İstehsal sifarişi' },
+  supply: { href: '/procurement/new', label: 'Yeni PO' },
+};
+
+interface MiniStat { icon: typeof Plus; tint: string; value: string; label: string }
+function miniStats(role: string, m: Metrics): MiniStat[] {
+  if (role === 'warehouse' || role === 'supply') return [
+    { icon: Package, tint: 'bg-violet-500/12 text-violet-600', value: formatCurrency(m.inventoryValue, 'AZN'), label: 'Anbar dəyəri' },
+    { icon: AlertTriangle, tint: 'bg-rose-500/12 text-rose-600', value: String(m.criticalMaterials.length), label: 'Kritik stok' },
+    { icon: ShoppingCart, tint: 'bg-sky-500/12 text-sky-600', value: String(m.openPOs.length), label: 'Açıq PO' },
+  ];
+  if (role === 'production') return [
+    { icon: Factory, tint: 'bg-violet-500/12 text-violet-600', value: String(m.activeProduction.length), label: 'Aktiv istehsal' },
+    { icon: Droplets, tint: 'bg-sky-500/12 text-sky-600', value: String(m.inWashing.length), label: 'Yuyulmada' },
+    { icon: Boxes, tint: 'bg-pink-500/12 text-pink-600', value: `${formatNumber(m.monthProduction, 0)}`, label: 'Bu ay istehsal' },
+  ];
+  if (role === 'accountant') return [
+    { icon: Wallet, tint: 'bg-violet-500/12 text-violet-600', value: formatCurrency(m.arTotal, 'AZN'), label: 'Debitor (AR)' },
+    { icon: Wallet, tint: 'bg-rose-500/12 text-rose-600', value: formatCurrency(m.apTotal, 'AZN'), label: 'Kreditor (AP)' },
+    { icon: AlertTriangle, tint: 'bg-amber-500/12 text-amber-600', value: formatCurrency(m.arAging.overdueTotal, 'AZN'), label: 'Vaxtı keçmiş' },
+  ];
+  return [
+    { icon: ShoppingCart, tint: 'bg-violet-500/12 text-violet-600', value: String(m.activeOrders), label: 'Aktiv sifariş' },
+    { icon: Wallet, tint: 'bg-sky-500/12 text-sky-600', value: formatCurrency(m.arTotal, 'AZN'), label: 'Debitor (AR)' },
+    { icon: AlertTriangle, tint: 'bg-rose-500/12 text-rose-600', value: String(m.criticalMaterials.length), label: 'Kritik stok' },
+  ];
+}
+
+function StatMini({ icon: Icon, tint, value, label }: MiniStat) {
   return (
-    <div className="flex flex-wrap gap-2">
-      {list.map((a, i) => (
-        <Link
-          key={a.href + a.label}
-          href={a.href}
-          className={cn(
-            'inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-all',
-            glass
-              ? i === 0
-                ? 'bg-white text-[#5B5BF5] shadow-[0_8px_24px_-8px_rgba(0,0,0,0.4)] hover:scale-105'
-                : 'border border-white/30 bg-white/10 text-white backdrop-blur-md hover:bg-white/20'
-              : 'border border-border hover:bg-secondary',
-          )}
-        >
-          <a.icon className="h-4 w-4" /> {a.label}
-        </Link>
-      ))}
+    <div className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-soft transition-shadow hover:shadow-soft-lg">
+      <span className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl', tint)}><Icon className="h-5 w-5" /></span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-lg font-bold leading-tight">{value}</p>
+        <p className="truncate text-xs text-muted-foreground">{label}</p>
+      </div>
+      <MoreVertical className="h-4 w-4 shrink-0 text-muted-foreground/60" />
     </div>
   );
 }
 
-function HeroStat({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+const CAT_TAG: Record<string, string> = {
+  men: 'bg-sky-500/12 text-sky-600', women: 'bg-pink-500/12 text-pink-600', kids: 'bg-amber-500/12 text-amber-600',
+};
+const CAT_LABEL: Record<string, string> = { men: 'Kişi', women: 'Qadın', kids: 'Uşaq' };
+const FEAT_GRAD = ['from-[#5B5BF5] to-[#9333ea]', 'from-[#06b6d4] to-[#3b82f6]', 'from-[#ec4899] to-[#8b5cf6]', 'from-[#14b8a6] to-[#5B5BF5]'];
+
+function FeatureCard({ item }: { item: { id: string; name: string; category: string; image?: string; price: number; progress: number; sold: number } }) {
   return (
-    <div className={cn('min-w-[150px] rounded-2xl border border-white/20 p-4 backdrop-blur-md', highlight ? 'bg-white/20' : 'bg-white/10')}>
-      <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/70">{label}</p>
-      <p className="mt-1.5 text-2xl font-bold tracking-tight">{value}</p>
+    <div className="w-[250px] shrink-0 overflow-hidden rounded-2xl border border-border bg-card p-3 shadow-soft transition-all hover:-translate-y-1 hover:shadow-soft-lg">
+      <div className="relative aspect-[16/10] overflow-hidden rounded-xl">
+        {item.image ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
+        ) : (
+          <div className={cn('flex h-full w-full items-center justify-center bg-gradient-to-br p-3', FEAT_GRAD[item.id.charCodeAt(0) % FEAT_GRAD.length])}>
+            <span className="text-center text-sm font-bold text-white">{item.name}</span>
+          </div>
+        )}
+      </div>
+      <span className={cn('mt-3 inline-block rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', CAT_TAG[item.category] ?? 'bg-secondary text-foreground')}>{CAT_LABEL[item.category] ?? item.category}</span>
+      <p className="mt-1.5 line-clamp-2 text-sm font-semibold leading-snug">{item.name}</p>
+      <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-secondary">
+        <div className="h-full rounded-full bg-gradient-to-r from-[#5B5BF5] to-[#8b3df0]" style={{ width: `${Math.max(6, item.progress)}%` }} />
+      </div>
+      <div className="mt-2 flex items-center justify-between text-xs">
+        <span className="font-bold text-primary">{formatCurrency(item.price, 'AZN')}</span>
+        <span className="text-muted-foreground">{item.sold} satılıb</span>
+      </div>
     </div>
   );
 }
 
-function RoleKpis({ role, m }: { role: string; m: Metrics }) {
-  if (role === 'accountant') return <>
-    <Kpi label="Bu ay satış" value={formatCurrency(m.monthSales, 'AZN')} icon={TrendingUp} color="text-info" />
-    <Kpi label="Debitor (AR)" value={formatCurrency(m.arTotal, 'AZN')} icon={Wallet} color="text-success" />
-    <Kpi label="Kreditor (AP)" value={formatCurrency(m.apTotal, 'AZN')} icon={Wallet} color="text-danger" />
-    <Kpi label="Vaxtı keçmiş AR" value={formatCurrency(m.arAging.overdueTotal, 'AZN')} icon={AlertTriangle} color="text-warning" />
-  </>;
-  if (role === 'warehouse') return <>
-    <Kpi label="Anbar dəyəri" value={formatCurrency(m.inventoryValue, 'AZN')} icon={Package} color="text-warning" />
-    <Kpi label="Xam material dəyəri" value={formatCurrency(m.rawValue, 'AZN')} icon={Package} color="text-info" />
-    <Kpi label="Hazır məhsul variant" value={String(m.fgVariants)} icon={Boxes} color="text-primary" />
-    <Kpi label="Kritik stok" value={String(m.criticalMaterials.length)} icon={AlertTriangle} color="text-danger" />
-  </>;
-  if (role === 'production') return <>
-    <Kpi label="Aktiv istehsal" value={String(m.activeProduction.length)} icon={Factory} color="text-primary" />
-    <Kpi label="Bu ay istehsal" value={`${formatNumber(m.monthProduction, 0)} ədəd`} icon={Factory} color="text-info" />
-    <Kpi label="Yuyulmada" value={String(m.inWashing.length)} icon={Droplets} color="text-warning" />
-    <Kpi label="Kritik material" value={String(m.criticalMaterials.length)} icon={AlertTriangle} color="text-danger" />
-  </>;
-  if (role === 'supply') return <>
-    <Kpi label="Açıq PO" value={String(m.openPOs.length)} icon={ShoppingCart} color="text-primary" />
-    <Kpi label="Gözləyən GRN" value={String(m.pendingGRN.length)} icon={Truck} color="text-warning" />
-    <Kpi label="Kreditor (AP)" value={formatCurrency(m.apTotal, 'AZN')} icon={Wallet} color="text-danger" />
-    <Kpi label="Kritik material" value={String(m.criticalMaterials.length)} icon={AlertTriangle} color="text-info" />
-  </>;
-  if (role === 'sales' || role === 'cashier') return <>
-    <Kpi label="Bu gün satış" value={formatCurrency(m.todaySales, 'AZN')} icon={TrendingUp} color="text-success" />
-    <Kpi label="Bu ay satış" value={formatCurrency(m.monthSales, 'AZN')} icon={TrendingUp} color="text-info" />
-    <Kpi label="Aktiv sifariş" value={String(m.activeOrders)} icon={ShoppingCart} color="text-primary" />
-    <Kpi label="Debitor (AR)" value={formatCurrency(m.arTotal, 'AZN')} icon={Wallet} color="text-warning" />
-  </>;
-  // director (default) — tam executive
-  return <>
-    <Kpi label="Bu gün satış" value={formatCurrency(m.todaySales, 'AZN')} icon={TrendingUp} color="text-success" />
-    <Kpi label="Bu ay satış" value={formatCurrency(m.monthSales, 'AZN')} icon={TrendingUp} color="text-info" />
-    <Kpi label="Bu ay istehsal" value={`${formatNumber(m.monthProduction, 0)} ədəd`} icon={Factory} color="text-primary" />
-    <Kpi label="Anbar dəyəri" value={formatCurrency(m.inventoryValue, 'AZN')} icon={Package} color="text-warning" />
-    <Kpi label="Debitor (AR)" value={formatCurrency(m.arTotal, 'AZN')} icon={Wallet} color="text-success" />
-    <Kpi label="Kreditor (AP)" value={formatCurrency(m.apTotal, 'AZN')} icon={Wallet} color="text-danger" />
-    <Kpi label="Aktiv sifariş" value={String(m.activeOrders)} icon={ShoppingCart} color="text-info" />
-    <Kpi label="Kritik stok" value={String(m.criticalMaterials.length)} icon={AlertTriangle} color="text-danger" />
-  </>;
+function AvatarRing({ name, avatarUrl, percent }: { name: string; avatarUrl?: string; percent: number }) {
+  const p = Math.min(100, Math.max(0, percent));
+  return (
+    <div className="relative h-28 w-28">
+      <div className="absolute inset-0 rounded-full" style={{ background: `conic-gradient(#5B5BF5 ${p * 3.6}deg, rgba(127,127,127,0.14) 0deg)` }} />
+      <div className="absolute inset-[7px] overflow-hidden rounded-full bg-card">
+        {avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={avatarUrl} alt={name} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#5B5BF5] to-[#8b3df0] text-2xl font-bold text-white">{name.slice(0, 2).toUpperCase()}</div>
+        )}
+      </div>
+      <span className="absolute -right-1 top-1 rounded-full bg-[#5B5BF5] px-2 py-0.5 text-[11px] font-bold text-white shadow-lg">{p.toFixed(0)}%</span>
+    </div>
+  );
 }
 
 function RolePanels({ role, m }: { role: string; m: Metrics }) {
@@ -603,24 +739,3 @@ function Empty({ text }: { text: string }) {
   return <p className="py-8 text-center text-sm text-muted-foreground">{text}</p>;
 }
 
-const KPI_THEME: Record<string, { ic: string; blob: string }> = {
-  'text-success': { ic: 'from-emerald-400 to-emerald-600', blob: 'bg-emerald-500/15' },
-  'text-info': { ic: 'from-sky-400 to-blue-600', blob: 'bg-sky-500/15' },
-  'text-primary': { ic: 'from-[#5B5BF5] to-[#8b3df0]', blob: 'bg-[#5B5BF5]/15' },
-  'text-warning': { ic: 'from-amber-400 to-orange-500', blob: 'bg-amber-500/15' },
-  'text-danger': { ic: 'from-rose-400 to-red-600', blob: 'bg-rose-500/15' },
-};
-
-function Kpi({ label, value, icon: Icon, color }: { label: string; value: string; icon: typeof TrendingUp; color: string }) {
-  const t = KPI_THEME[color] ?? KPI_THEME['text-primary'];
-  return (
-    <div className="group relative overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-soft-lg">
-      <div aria-hidden className={cn('pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full blur-2xl transition-opacity group-hover:opacity-80', t.blob)} />
-      <span className={cn('relative flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-lg', t.ic)}>
-        <Icon className="h-5 w-5" />
-      </span>
-      <p className="relative mt-3 text-2xl font-bold leading-none tracking-tight">{value}</p>
-      <p className="relative mt-1.5 text-xs font-medium text-muted-foreground">{label}</p>
-    </div>
-  );
-}

@@ -175,8 +175,18 @@ export default function ProductsPage() {
                 <TableRow key={p.id}>
                   <TableCell className="font-mono text-xs">{p.sku}</TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-8 w-8 items-center justify-center rounded bg-muted"><Shirt className="h-4 w-4 text-muted-foreground" /></span>
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted">
+                        {(() => {
+                          const img = p.images?.find((i) => i.isPrimary)?.url ?? p.images?.[0]?.url;
+                          return img ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={img} alt={p.name?.az ?? ''} className="h-full w-full object-cover" />
+                          ) : (
+                            <Shirt className="h-4 w-4 text-muted-foreground" />
+                          );
+                        })()}
+                      </span>
                       <div>
                         <p className="font-medium leading-none">{p.name?.az}</p>
                         <p className="text-xs text-muted-foreground">{p.modelCode}</p>

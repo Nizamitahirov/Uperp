@@ -25,11 +25,13 @@ interface Settings {
   defaultCostingMethod: 'FIFO' | 'AVCO';
   wholesaleMarkup: number;
   retailMarkup: number;
+  monthlySalesTarget: number;
 }
 
 const DEFAULTS: Settings = {
   companyName: '', taxNumber: '', address: '', phone: '', email: '',
   baseCurrency: 'AZN', vatRate: 18, defaultCostingMethod: 'FIFO', wholesaleMarkup: 1.1, retailMarkup: 1.9,
+  monthlySalesTarget: 0,
 };
 
 export default function SettingsPage() {
@@ -87,6 +89,7 @@ export default function SettingsPage() {
             </Field>
             <Field label="Topdan markup (×)"><Input type="number" step="any" disabled={!canEdit} value={s.wholesaleMarkup} onChange={(e) => setS({ ...s, wholesaleMarkup: +e.target.value })} /></Field>
             <Field label="Pərakəndə markup (×)"><Input type="number" step="any" disabled={!canEdit} value={s.retailMarkup} onChange={(e) => setS({ ...s, retailMarkup: +e.target.value })} /></Field>
+            <Field label="Aylıq satış hədəfi (AZN)"><Input type="number" step="any" disabled={!canEdit} value={s.monthlySalesTarget} onChange={(e) => setS({ ...s, monthlySalesTarget: +e.target.value })} placeholder="məs. 60000" /></Field>
           </CardContent>
         </Card>
       </div>

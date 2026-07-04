@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
-import { Inbox, LogOut, Menu, User } from 'lucide-react';
+import { Inbox, LogOut, Menu, Settings, User } from 'lucide-react';
 import { useInbox } from '@/hooks/use-inbox';
 import { PageGuide } from '@/components/shared/page-guide';
 import { useAuth } from '@/components/providers/auth-provider';
@@ -65,11 +65,22 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>{name}</DropdownMenuLabel>
+            <DropdownMenuLabel>
+              <p className="font-semibold">{name}</p>
+              <p className="text-xs font-normal text-muted-foreground">{getRoleName(profile?.role)}</p>
+            </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <User className="h-4 w-4" /> {t('profile')}
+            <DropdownMenuItem asChild>
+              <Link href="/profile">
+                <User className="h-4 w-4" /> {t('profile')}
+              </Link>
             </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/settings">
+                <Settings className="h-4 w-4" /> Tənzimləmələr
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout} className="text-danger">
               <LogOut className="h-4 w-4" /> {t('logout')}
             </DropdownMenuItem>

@@ -10,9 +10,9 @@ import {
 } from 'recharts';
 import {
   Wallet, Package, Factory, ShoppingCart, AlertTriangle, Sparkles, Loader2,
-  Plus, ArrowRight, ArrowUpRight, Droplets, Boxes, MoreVertical,
+  Plus, ArrowRight, ArrowUpRight, Droplets, Boxes, Target, Settings as SettingsIcon,
 } from 'lucide-react';
-import { listDocs } from '@/lib/firebase/firestore';
+import { listDocs, getDocById } from '@/lib/firebase/firestore';
 import { aiPrompt } from '@/lib/ai/client';
 import { ChartCard } from '@/components/charts/chart-card';
 import { CHART_COLORS, PRIMARY } from '@/components/charts/palette';
@@ -62,6 +62,11 @@ export default function DashboardPage() {
       ]);
       return { sales, receivables, payables, materials, finished, production, deliveries, purchaseOrders, customers, washing, products };
     },
+  });
+
+  const { data: settings } = useQuery({
+    queryKey: ['settings-global'],
+    queryFn: () => getDocById<{ monthlySalesTarget?: number }>('settings', 'global'),
   });
 
   const m = useMemo(() => {
@@ -161,7 +166,8 @@ export default function DashboardPage() {
       sold: x.sold,
     }));
   }, [data]);
-  const marginPct = m && m.monthSales > 0 ? (m.netProfit / m.monthSales) * 100 : 0;
+  const salesTarget = settings?.monthlySalesTarget ?? 0;
+  const targetPct = m && salesTarget > 0 ? Math.min(100, (m.monthSales / salesTarget) * 100) : 0;
 
   // Donut — kanal üzrə satış
   const channelData = useMemo(() => {
@@ -263,48 +269,28 @@ export default function DashboardPage() {
                   </div>
                 )}
               </div>
-
-              {/* Son sifarişlər */}
-              <Card className="rounded-card">
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle className="text-base">Son sifarişlər</CardTitle>
-                  <Link href="/sales" className="text-sm font-medium text-primary hover:underline">See all</Link>
-                </CardHeader>
-                <CardContent className="p-0">
-                  {m.recentOrders.length === 0 ? <Empty text="Sifariş yoxdur" /> : (
-                    <div>
-                      <div className="grid grid-cols-[1.5fr_1fr_1fr_auto] gap-2 border-b border-border px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        <span>Müştəri</span><span>Kanal</span><span>Status</span><span>Əməliyyat</span>
-                      </div>
-                      {m.recentOrders.slice(0, 5).map((s) => (
-                        <div key={s.id} className="grid grid-cols-[1.5fr_1fr_1fr_auto] items-center gap-2 border-b border-border/50 px-5 py-2.5 text-sm last:border-0">
-                          <div className="flex items-center gap-2 truncate">
-                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">{(s.customerName ?? '?').slice(0, 2).toUpperCase()}</span>
-                            <span className="min-w-0"><span className="block truncate font-medium">{s.customerName ?? '—'}</span><span className="block truncate text-xs text-muted-foreground">{s.soNumber}</span></span>
-                          </div>
-                          <span className="text-muted-foreground">{s.channel}</span>
-                          <span><Badge variant={SALES_ORDER_STATUS_META[s.status]?.variant ?? 'secondary'}>{SALES_ORDER_STATUS_META[s.status]?.label ?? s.status}</Badge></span>
-                          <Link href={`/sales/${s.id}`} className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-primary transition-colors hover:bg-primary/10"><ArrowUpRight className="h-4 w-4" /></Link>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
             </div>
 
             {/* ═══════════ RIGHT — Statistik ═══════════ */}
-            <aside className="space-y-5">
-              {/* Avatar ring + greeting */}
+            <aside className="flex flex-col gap-5">
+              {/* Avatar ring + aylıq hədəf */}
               <Card className="rounded-card">
-                <CardHeader className="flex flex-row items-center justify-between pb-0">
-                  <CardTitle className="text-base">Statistik</CardTitle>
-                  <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                <CardHeader className="pb-0">
+                  <CardTitle className="flex items-center gap-2 text-base"><Target className="h-4 w-4 text-primary" /> Aylıq satış hədəfi</CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col items-center pt-4 text-center">
-                  <AvatarRing name={firstName} avatarUrl={profile?.avatarUrl} percent={Math.round(marginPct)} />
-                  <p className="mt-4 text-lg font-bold">{greet.replace('ınız', 'ın')}, {firstName} 🔥</p>
-                  <p className="text-xs text-muted-foreground">Hədəfə çatmaq üçün davam et!</p>
+                  <AvatarRing name={firstName} avatarUrl={profile?.avatarUrl} percent={Math.round(targetPct)} />
+                  {salesTarget > 0 ? (
+                    <>
+                      <p className="mt-4 text-lg font-bold">{formatCurrency(m.monthSales, 'AZN')}</p>
+                      <p className="text-xs text-muted-foreground">/ {formatCurrency(salesTarget, 'AZN')} hədəf · bu ay</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="mt-4 text-sm font-medium">Hədəf təyin edilməyib</p>
+                      <Link href="/settings" className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"><SettingsIcon className="h-3 w-3" /> Tənzimləmələrdə hədəf təyin et</Link>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 
@@ -332,7 +318,7 @@ export default function DashboardPage() {
               </Card>
 
               {/* Top müştərilər */}
-              <Card className="rounded-card">
+              <Card className="rounded-card flex flex-1 flex-col">
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle className="text-base">Top müştərilər</CardTitle>
                   <Link href="/customers" className="text-xs font-medium text-primary hover:underline">See all</Link>
@@ -350,12 +336,41 @@ export default function DashboardPage() {
             </aside>
           </div>
 
+          {/* Son sifarişlər — tam en */}
+          <Card className="rounded-card mt-6">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base">Son sifarişlər</CardTitle>
+              <Link href="/sales" className="text-sm font-medium text-primary hover:underline">Hamısı</Link>
+            </CardHeader>
+            <CardContent className="p-0">
+              {m.recentOrders.length === 0 ? <Empty text="Sifariş yoxdur" /> : (
+                <div className="overflow-x-auto">
+                  <div className="grid min-w-[560px] grid-cols-[2fr_1fr_1fr_1fr_auto] gap-2 border-b border-border px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    <span>Müştəri</span><span>Kanal</span><span>Məbləğ</span><span>Status</span><span>Əməliyyat</span>
+                  </div>
+                  {m.recentOrders.map((s) => (
+                    <div key={s.id} className="grid min-w-[560px] grid-cols-[2fr_1fr_1fr_1fr_auto] items-center gap-2 border-b border-border/50 px-5 py-2.5 text-sm last:border-0">
+                      <div className="flex items-center gap-2 truncate">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">{(s.customerName ?? '?').slice(0, 2).toUpperCase()}</span>
+                        <span className="min-w-0"><span className="block truncate font-medium">{s.customerName ?? '—'}</span><span className="block truncate text-xs text-muted-foreground">{s.soNumber}</span></span>
+                      </div>
+                      <span className="truncate text-muted-foreground">{s.channel}</span>
+                      <span className="font-semibold">{formatCurrency(s.totalAmount ?? 0, 'AZN')}</span>
+                      <span><Badge variant={SALES_ORDER_STATUS_META[s.status]?.variant ?? 'secondary'}>{SALES_ORDER_STATUS_META[s.status]?.label ?? s.status}</Badge></span>
+                      <Link href={`/sales/${s.id}`} className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-primary transition-colors hover:bg-primary/10"><ArrowUpRight className="h-4 w-4" /></Link>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* ── Qrafiklər (direktor + satış) — zəngin tiplər + AI izah ── */}
           {showCharts && (
-            <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-              {/* Kombo: aylıq satış (sütun) + kümulyativ (xətt) */}
-              <ChartCard className="lg:col-span-2" title="Satış trendi və kümulyativ (6 ay)" type="combo (bar + line)" data={salesTrend} context="AZN, aylıq satış sütun, kümulyativ xətt">
-                <ResponsiveContainer width="100%" height={280}>
+            <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {/* Kombo: aylıq satış (sütun) + kümulyativ (xətt) — 1/3 en */}
+              <ChartCard title="Satış trendi və kümulyativ (6 ay)" type="combo (bar + line)" data={salesTrend} context="AZN, aylıq satış sütun, kümulyativ xətt">
+                <ResponsiveContainer width="100%" height={200}>
                   <ComposedChart data={salesTrend}>
                     <defs>
                       <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
@@ -364,10 +379,9 @@ export default function DashboardPage() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="month" fontSize={12} /><YAxis fontSize={12} />
+                    <XAxis dataKey="month" fontSize={11} /><YAxis fontSize={11} width={32} />
                     <Tooltip formatter={(v: number) => formatCurrency(v, 'AZN')} />
-                    <Legend />
-                    <Bar name="Aylıq satış" dataKey="value" fill="url(#barGrad)" radius={[6, 6, 0, 0]} barSize={36} />
+                    <Bar name="Aylıq satış" dataKey="value" fill="url(#barGrad)" radius={[6, 6, 0, 0]} barSize={20} />
                     <Line name="Kümulyativ" type="monotone" dataKey="cumulative" stroke={CHART_COLORS[1]} strokeWidth={2.5} dot={{ r: 3 }} />
                   </ComposedChart>
                 </ResponsiveContainer>
@@ -388,9 +402,9 @@ export default function DashboardPage() {
               {/* Donut: kanal üzrə satış */}
               <ChartCard title="Kanal üzrə satış" type="donut" data={channelData} context="AZN, satış kanalları payı">
                 {channelData.length === 0 ? <Empty text="Satış məlumatı yoxdur" /> : (
-                  <ResponsiveContainer width="100%" height={260}>
+                  <ResponsiveContainer width="100%" height={200}>
                     <PieChart>
-                      <Pie data={channelData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={58} outerRadius={92} paddingAngle={3}>
+                      <Pie data={channelData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={48} outerRadius={78} paddingAngle={3}>
                         {channelData.map((_, i) => <Cell key={i} stroke="transparent" fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
                       </Pie>
                       <Tooltip formatter={(v: number) => formatCurrency(v, 'AZN')} />
@@ -403,10 +417,10 @@ export default function DashboardPage() {
               {/* Radar: ölçü üzrə satış */}
               <ChartCard title="Ölçü aralığı üzrə satış" type="radar" data={sizeData} context="ədəd, ölçü aralıqları">
                 {sizeData.length === 0 ? <Empty text="Ölçü məlumatı yoxdur" /> : (
-                  <ResponsiveContainer width="100%" height={260}>
+                  <ResponsiveContainer width="100%" height={200}>
                     <RadarChart data={sizeData}>
                       <PolarGrid className="stroke-muted" />
-                      <PolarAngleAxis dataKey="size" fontSize={12} />
+                      <PolarAngleAxis dataKey="size" fontSize={11} />
                       <PolarRadiusAxis fontSize={10} />
                       <Radar name="Ədəd" dataKey="qty" stroke={PRIMARY} fill={PRIMARY} fillOpacity={0.35} />
                       <Tooltip />
@@ -418,10 +432,10 @@ export default function DashboardPage() {
               {/* Sütun: top məhsullar */}
               <ChartCard title="Top məhsullar (satılan ədəd)" type="column" data={topProducts} context="ədəd, ən çox satılan modellər">
                 {topProducts.length === 0 ? <Empty text="Satış məlumatı yoxdur" /> : (
-                  <ResponsiveContainer width="100%" height={260}>
+                  <ResponsiveContainer width="100%" height={200}>
                     <BarChart data={topProducts}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis dataKey="name" fontSize={11} /><YAxis fontSize={12} /><Tooltip />
+                      <XAxis dataKey="name" fontSize={10} /><YAxis fontSize={11} width={32} /><Tooltip />
                       <Bar dataKey="qty" radius={[6, 6, 0, 0]}>
                         {topProducts.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
                       </Bar>
@@ -434,9 +448,9 @@ export default function DashboardPage() {
               {role === 'director' && (
                 <ChartCard title="Anbar dəyəri tərkibi" type="donut" data={inventoryMix} context="AZN, xam material vs hazır məhsul">
                   {inventoryMix.length === 0 ? <Empty text="Stok məlumatı yoxdur" /> : (
-                    <ResponsiveContainer width="100%" height={260}>
+                    <ResponsiveContainer width="100%" height={200}>
                       <PieChart>
-                        <Pie data={inventoryMix} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={58} outerRadius={92} paddingAngle={3}>
+                        <Pie data={inventoryMix} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={48} outerRadius={78} paddingAngle={3}>
                           {inventoryMix.map((_, i) => <Cell key={i} stroke="transparent" fill={[CHART_COLORS[4], CHART_COLORS[0]][i % 2]} />)}
                         </Pie>
                         <Tooltip formatter={(v: number) => formatCurrency(v, 'AZN')} />
@@ -533,13 +547,12 @@ function miniStats(role: string, m: Metrics): MiniStat[] {
 
 function StatMini({ icon: Icon, tint, value, label }: MiniStat) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-soft transition-shadow hover:shadow-soft-lg">
-      <span className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl', tint)}><Icon className="h-5 w-5" /></span>
+    <div className="group flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-soft transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-soft-lg">
+      <span className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-105', tint)}><Icon className="h-5 w-5" /></span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-lg font-bold leading-tight">{value}</p>
         <p className="truncate text-xs text-muted-foreground">{label}</p>
       </div>
-      <MoreVertical className="h-4 w-4 shrink-0 text-muted-foreground/60" />
     </div>
   );
 }
@@ -684,7 +697,7 @@ function GaugeCard({ title, percent, label, color, sub }: { title: string; perce
       <CardHeader><CardTitle className="text-base">{title}</CardTitle></CardHeader>
       <CardContent>
         <div className="relative">
-          <ResponsiveContainer width="100%" height={200}>
+          <ResponsiveContainer width="100%" height={160}>
             <RadialBarChart innerRadius="72%" outerRadius="100%" data={data} startAngle={90} endAngle={-270}>
               <defs>
                 <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="1">

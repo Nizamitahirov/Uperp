@@ -231,7 +231,7 @@ export default function DashboardPage() {
         <>
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
             {/* ═══════════ LEFT ═══════════ */}
-            <div className="min-w-0 space-y-6">
+            <div className="flex min-w-0 flex-col gap-6">
               {/* HERO */}
               <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#6b5cf2] via-[#6a4cf3] to-[#8b3df0] p-7 text-white shadow-[0_24px_70px_-24px_rgba(91,91,245,0.6)] lg:p-9">
                 <div aria-hidden className="pointer-events-none absolute inset-0">
@@ -256,15 +256,15 @@ export default function DashboardPage() {
               </div>
 
               {/* Ən çox satılan (carousel) */}
-              <div>
+              <div className="flex flex-1 flex-col">
                 <div className="mb-4 flex items-center justify-between">
                   <h2 className="text-xl font-bold tracking-tight">Ən çox satılan modellər</h2>
                   <Link href="/products" className="flex items-center gap-1 text-sm font-medium text-primary hover:underline">Hamısı <ArrowUpRight className="h-4 w-4" /></Link>
                 </div>
                 {featured.length === 0 ? (
-                  <Card className="rounded-card"><Empty text="Hələ satış datası yoxdur" /></Card>
+                  <Card className="rounded-card flex-1"><Empty text="Hələ satış datası yoxdur" /></Card>
                 ) : (
-                  <div className="flex gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <div className="flex flex-1 items-stretch gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {featured.map((f) => <FeatureCard key={f.id} item={f} />)}
                   </div>
                 )}
@@ -565,11 +565,11 @@ const FEAT_GRAD = ['from-[#5B5BF5] to-[#9333ea]', 'from-[#06b6d4] to-[#3b82f6]',
 
 function FeatureCard({ item }: { item: { id: string; name: string; category: string; image?: string; price: number; progress: number; sold: number } }) {
   return (
-    <div className="w-[250px] shrink-0 overflow-hidden rounded-2xl border border-border bg-card p-3 shadow-soft transition-all hover:-translate-y-1 hover:shadow-soft-lg">
-      <div className="relative aspect-[16/10] overflow-hidden rounded-xl">
+    <div className="flex w-[250px] shrink-0 flex-col overflow-hidden rounded-2xl border border-border bg-card p-3 shadow-soft transition-all hover:-translate-y-1 hover:shadow-soft-lg">
+      <div className="relative min-h-[150px] flex-1 overflow-hidden rounded-xl">
         {item.image ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
+          <img src={item.image} alt={item.name} className="absolute inset-0 h-full w-full object-cover" />
         ) : (
           <div className={cn('flex h-full w-full items-center justify-center bg-gradient-to-br p-3', FEAT_GRAD[item.id.charCodeAt(0) % FEAT_GRAD.length])}>
             <span className="text-center text-sm font-bold text-white">{item.name}</span>

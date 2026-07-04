@@ -12,7 +12,8 @@
     "seed": "node scripts/seed.mjs",
     "deploy:rules": "node scripts/deploy-rules.mjs",
     "deploy:indexes": "node scripts/deploy-indexes.mjs",
-    "seed:demo": "node scripts/demo-data.mjs"
+    "seed:demo": "node scripts/demo-data.mjs",
+    "seed:july": "node scripts/seed-july.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

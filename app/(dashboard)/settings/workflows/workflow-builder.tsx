@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ArrowDown, ArrowUp, ChevronDown, Loader2, Plus, Trash2, Zap } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, Loader2, Plus, Trash2, Zap, Workflow as WorkflowIcon, Settings2, GitBranch, Bell } from 'lucide-react';
 import type { Workflow, WorkflowActionType, WorkflowStep, WorkflowStatus, WorkflowTriggerType } from '@/types';
 import { createWorkflow, updateWorkflow, type WorkflowInput } from '@/lib/firebase/workflows';
 import { TRIGGERS, ACTIONS, TRIGGER_MAP, ACTION_MAP, CONDITION_OPS } from '@/lib/workflow/catalog';
@@ -9,7 +9,6 @@ import { ROLES } from '@/lib/rbac/permissions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AiWriteButton } from '@/components/ai/ai-write-button';
@@ -115,52 +114,56 @@ export function WorkflowBuilder({ open, onOpenChange, initial, users, onSaved }:
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>{initial ? 'Workflow düzəlt' : 'Yeni workflow'}</DialogTitle>
+      <DialogContent className="max-w-3xl gap-0 overflow-hidden p-0">
+        <DialogHeader className="space-y-0 border-b border-border bg-gradient-to-r from-primary/10 via-primary/5 to-transparent px-5 py-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[#5B5BF5] to-[#8b3df0] text-white shadow-lg"><WorkflowIcon className="h-5 w-5" /></span>
+            <div>
+              <DialogTitle className="text-lg">{initial ? 'Workflow düzəlt' : 'Yeni workflow'}</DialogTitle>
+              <p className="text-xs text-muted-foreground">Trigger → şərt → addımlar ardıcıllığını qur (Power Automate üslubu)</p>
+            </div>
+          </div>
         </DialogHeader>
 
-        <div className="max-h-[72vh] space-y-5 overflow-y-auto pr-1">
-          {/* Ad + status */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto]">
-            <div className="space-y-1.5">
-              <Label>Ad *</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Məs. Böyük PO təsdiqi" />
+        <div className="max-h-[70vh] space-y-4 overflow-y-auto bg-muted/30 p-5">
+          {/* 1 — Əsas məlumat */}
+          <Section n={1} icon={Settings2} title="Əsas məlumat" subtitle="Ad, status və qısa təsvir">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_170px]">
+              <div className="space-y-1.5">
+                <Label>Ad *</Label>
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Məs. Böyük PO təsdiqi" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Status</Label>
+                <Select value={status} onValueChange={(v) => setStatus(v as WorkflowStatus)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">🟢 Aktiv</SelectItem>
+                    <SelectItem value="draft">⚪ Qaralama</SelectItem>
+                    <SelectItem value="paused">🟡 Dayandırılıb</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>Status</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as WorkflowStatus)}>
-                <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Aktiv</SelectItem>
-                  <SelectItem value="draft">Qaralama</SelectItem>
-                  <SelectItem value="paused">Dayandırılıb</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="mt-3 space-y-1.5">
+              <Label>Təsvir</Label>
+              <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Bu avtomatlaşdırma nə edir?" />
             </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Təsvir</Label>
-            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Bu avtomatlaşdırma nə edir?" />
-          </div>
+          </Section>
 
-          {/* TRIGGER */}
-          <div>
-            <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              <Zap className="h-3.5 w-3.5 text-warning" /> Trigger — nə vaxt başlasın
-            </p>
+          {/* 2 — Trigger */}
+          <Section n={2} icon={Zap} title="Trigger — nə vaxt başlasın" subtitle="Hadisə baş verdikdə workflow işə düşür" accent="bg-amber-500/15 text-amber-600">
             <Select value={trigger} onValueChange={(v) => { setTrigger(v as WorkflowTriggerType); setCondField(''); }}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {TRIGGERS.map((tr) => <SelectItem key={tr.type} value={tr.type}>{tr.label}</SelectItem>)}
               </SelectContent>
             </Select>
-            {trig?.description && <p className="mt-1.5 text-xs text-muted-foreground">{trig.description}</p>}
+            {trig?.description && <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground"><span className="h-1 w-1 rounded-full bg-muted-foreground" /> {trig.description}</p>}
 
-            {/* Şərt (opsional) */}
             {trig && trig.fields.length > 0 && (
-              <div className="mt-3 rounded-card border border-border bg-secondary/30 p-3">
-                <p className="mb-2 text-xs font-medium">Şərt (opsional) — yalnız uyğun olduqda işə düşsün</p>
+              <div className="mt-3 rounded-xl border border-dashed border-border bg-background p-3">
+                <p className="mb-2 flex items-center gap-1.5 text-xs font-medium"><GitBranch className="h-3.5 w-3.5 text-primary" /> Şərt (opsional) — yalnız uyğun olduqda işə düşsün</p>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   <Select value={condField || '__none'} onValueChange={(v) => setCondField(v === '__none' ? '' : v)}>
                     <SelectTrigger><SelectValue placeholder="Sahə" /></SelectTrigger>
@@ -169,7 +172,7 @@ export function WorkflowBuilder({ open, onOpenChange, initial, users, onSaved }:
                       {trig.fields.map((f) => <SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  <Select value={condOp} onValueChange={setCondOp} >
+                  <Select value={condOp} onValueChange={setCondOp}>
                     <SelectTrigger disabled={!condField}><SelectValue /></SelectTrigger>
                     <SelectContent>{CONDITION_OPS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
                   </Select>
@@ -177,14 +180,11 @@ export function WorkflowBuilder({ open, onOpenChange, initial, users, onSaved }:
                 </div>
               </div>
             )}
-          </div>
+          </Section>
 
-          {/* AXIN (steps) */}
-          <div>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Addımlar — ardıcıl icra</p>
-
-            {/* Trigger node */}
-            <FlowNode tint="bg-warning/10 text-warning" icon={<Zap className="h-4 w-4" />} title={trig?.label ?? 'Trigger'} subtitle="Başlanğıc" />
+          {/* 3 — Axın (addımlar) */}
+          <Section n={3} icon={WorkflowIcon} title="Axın — ardıcıl icra" subtitle={`${steps.length} addım`}>
+            <FlowNode tint="bg-amber-500/15 text-amber-600" icon={<Zap className="h-4 w-4" />} title={trig?.label ?? 'Trigger'} subtitle="Başlanğıc" badge="START" />
 
             {steps.map((step, idx) => {
               const def = ACTION_MAP.get(step.type)!;
@@ -192,11 +192,12 @@ export function WorkflowBuilder({ open, onOpenChange, initial, users, onSaved }:
               return (
                 <div key={step.id}>
                   <Connector />
-                  <div className="rounded-card border border-border bg-card">
+                  <div className={cn('overflow-hidden rounded-xl border bg-background transition-colors', isOpen ? 'border-primary/50 shadow-soft' : 'border-border')}>
                     <button type="button" onClick={() => setExpanded(isOpen ? null : step.id)} className="flex w-full items-center gap-3 p-3 text-left">
-                      <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-button', def.tint)}><def.icon className="h-4 w-4" /></span>
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-bold text-muted-foreground">{idx + 1}</span>
+                      <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', def.tint)}><def.icon className="h-4 w-4" /></span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-semibold">{idx + 1}. {def.label}</span>
+                        <span className="block text-sm font-semibold">{def.label}</span>
                         <span className="block truncate text-xs text-muted-foreground">{stepSummary(step, users)}</span>
                       </span>
                       <span className="flex shrink-0 items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
@@ -207,7 +208,7 @@ export function WorkflowBuilder({ open, onOpenChange, initial, users, onSaved }:
                       </span>
                     </button>
                     {isOpen && (
-                      <div className="border-t border-border p-3">
+                      <div className="border-t border-border bg-secondary/30 p-3">
                         <StepEditor step={step} users={users} onPatch={(p) => patchStep(step.id, p)} />
                       </div>
                     )}
@@ -216,15 +217,14 @@ export function WorkflowBuilder({ open, onOpenChange, initial, users, onSaved }:
               );
             })}
 
-            {/* Add step */}
             <Connector />
             {palette ? (
-              <div className="rounded-card border border-dashed border-primary/40 bg-primary/5 p-3">
-                <p className="mb-2 text-xs font-medium text-muted-foreground">Əməliyyat seçin</p>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <div className="rounded-xl border border-primary/40 bg-primary/5 p-3">
+                <p className="mb-2 text-xs font-semibold text-primary">Əməliyyat seçin</p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {ACTIONS.map((a) => (
-                    <button key={a.type} type="button" onClick={() => addStep(a.type)} className="flex items-start gap-2 rounded-button border border-border bg-card p-2 text-left transition-colors hover:border-primary/40 hover:bg-secondary">
-                      <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-button', a.tint)}><a.icon className="h-4 w-4" /></span>
+                    <button key={a.type} type="button" onClick={() => addStep(a.type)} className="flex items-start gap-2.5 rounded-lg border border-border bg-background p-2.5 text-left transition-all hover:border-primary/50 hover:shadow-soft">
+                      <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', a.tint)}><a.icon className="h-4 w-4" /></span>
                       <span className="min-w-0">
                         <span className="block text-xs font-semibold leading-tight">{a.label}</span>
                         <span className="block text-[11px] leading-tight text-muted-foreground">{a.description}</span>
@@ -235,48 +235,64 @@ export function WorkflowBuilder({ open, onOpenChange, initial, users, onSaved }:
                 <Button variant="ghost" size="sm" className="mt-2" onClick={() => setPalette(false)}>Bağla</Button>
               </div>
             ) : (
-              <button type="button" onClick={() => setPalette(true)} className="flex w-full items-center justify-center gap-2 rounded-card border border-dashed border-border py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:bg-secondary hover:text-foreground">
+              <button type="button" onClick={() => setPalette(true)} className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-primary/40 bg-primary/[0.03] py-2.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10">
                 <Plus className="h-4 w-4" /> Addım əlavə et
               </button>
             )}
-          </div>
+          </Section>
 
-          {/* Təsdiq rejimi */}
-          {steps.some((s) => s.type === 'approval') && (
-            <div>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Təsdiq rejimi</p>
-              <div className="flex gap-2">
-                {(['sequential', 'parallel'] as const).map((mode) => (
-                  <button key={mode} type="button" onClick={() => setApprovalMode(mode)}
-                    className={cn('rounded-button border px-3 py-1.5 text-sm transition-colors', approvalMode === mode ? 'border-primary bg-primary text-primary-foreground' : 'border-border')}>
-                    {mode === 'sequential' ? 'Ardıcıl (bir-bir)' : 'Paralel (eyni anda)'}
-                  </button>
-                ))}
+          {/* 4 — Parametrlər */}
+          <Section n={4} icon={Bell} title="Parametrlər" subtitle="Təsdiq rejimi və bildiriş kanalları" accent="bg-sky-500/15 text-sky-600">
+            {steps.some((s) => s.type === 'approval') && (
+              <div className="mb-4">
+                <Label className="text-xs">Təsdiq rejimi</Label>
+                <div className="mt-1.5 flex gap-2">
+                  {(['sequential', 'parallel'] as const).map((mode) => (
+                    <button key={mode} type="button" onClick={() => setApprovalMode(mode)}
+                      className={cn('rounded-lg border px-3 py-1.5 text-sm transition-colors', approvalMode === mode ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:border-primary/40')}>
+                      {mode === 'sequential' ? 'Ardıcıl (bir-bir)' : 'Paralel (eyni anda)'}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-xs text-muted-foreground">{approvalMode === 'sequential' ? 'Hər təsdiq əvvəlkindən sonra istənilir.' : 'Bütün təsdiqlər eyni anda istənilir.'}</p>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">{approvalMode === 'sequential' ? 'Hər təsdiq əvvəlkindən sonra istənilir.' : 'Bütün təsdiqlər eyni anda istənilir.'}</p>
-            </div>
-          )}
-
-          {/* Kanallar */}
-          <div>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Bildiriş kanalları</p>
-            <div className="flex gap-2">
+            )}
+            <Label className="text-xs">Bildiriş kanalları</Label>
+            <div className="mt-1.5 flex gap-2">
               {(['app', 'email'] as const).map((c) => (
                 <button key={c} type="button" onClick={() => setChannels((ch) => ch.includes(c) ? ch.filter((x) => x !== c) : [...ch, c])}
-                  className={cn('rounded-button border px-3 py-1.5 text-sm transition-colors', channels.includes(c) ? 'border-primary bg-primary text-primary-foreground' : 'border-border')}>
+                  className={cn('rounded-lg border px-3 py-1.5 text-sm transition-colors', channels.includes(c) ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:border-primary/40')}>
                   {c === 'app' ? 'Tətbiqdaxili' : 'Email'}
                 </button>
               ))}
             </div>
-          </div>
+          </Section>
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-border pt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Ləğv</Button>
-          <Button onClick={save} disabled={saving}>{saving && <Loader2 className="animate-spin" />} Yadda saxla</Button>
+        <div className="flex items-center justify-between gap-2 border-t border-border bg-background px-5 py-3.5">
+          <p className="text-xs text-muted-foreground">{steps.length} addım · {name.trim() || 'adsız'}</p>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Ləğv</Button>
+            <Button onClick={save} disabled={saving}>{saving && <Loader2 className="h-4 w-4 animate-spin" />} Yadda saxla</Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function Section({ n, icon: Icon, title, subtitle, accent = 'bg-primary/10 text-primary', children }: { n: number; icon: React.ElementType; title: string; subtitle?: string; accent?: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+      <div className="mb-3 flex items-center gap-3">
+        <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-bold', accent)}>{n}</span>
+        <div className="min-w-0">
+          <p className="flex items-center gap-1.5 text-sm font-semibold"><Icon className="h-4 w-4 text-muted-foreground" /> {title}</p>
+          {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+        </div>
+      </div>
+      {children}
+    </section>
   );
 }
 
@@ -385,16 +401,21 @@ function StepEditor({ step, users, onPatch }: { step: WorkflowStep; users: Simpl
   );
 }
 
-function FlowNode({ tint, icon, title, subtitle }: { tint: string; icon: React.ReactNode; title: string; subtitle: string }) {
+function FlowNode({ tint, icon, title, subtitle, badge }: { tint: string; icon: React.ReactNode; title: string; subtitle: string; badge?: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-card border border-border bg-card p-3">
-      <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-button', tint)}>{icon}</span>
-      <div><p className="text-sm font-semibold">{title}</p><p className="text-xs text-muted-foreground">{subtitle}</p></div>
+    <div className="flex items-center gap-3 rounded-xl border border-border bg-background p-3">
+      <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', tint)}>{icon}</span>
+      <div className="min-w-0 flex-1"><p className="text-sm font-semibold">{title}</p><p className="text-xs text-muted-foreground">{subtitle}</p></div>
+      {badge && <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-600">{badge}</span>}
     </div>
   );
 }
 function Connector() {
-  return <div className="ml-[26px] h-4 w-px bg-border" />;
+  return (
+    <div className="flex justify-center py-1">
+      <div className="h-4 w-px bg-gradient-to-b from-border to-primary/30" />
+    </div>
+  );
 }
 
 function stepSummary(step: WorkflowStep, users: SimpleUser[]): string {

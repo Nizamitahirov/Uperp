@@ -1,8 +1,8 @@
-import { addDoc, collection, deleteDoc, doc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { getDb } from './config';
 import { logAudit } from './audit';
 import type { CustomRole } from '@/types';
-import type { ModuleKey, PermissionAction } from '@/lib/rbac/permissions';
+import type { ModuleKey, PermissionAction, PermissionMatrix } from '@/lib/rbac/permissions';
 
 interface Actor {
   uid: string;
@@ -34,4 +34,17 @@ export async function fetchCustomRole(roleId: string): Promise<CustomRole | null
   const snap = await getDoc(doc(getDb(), 'roles', roleId));
   if (!snap.exists()) return null;
   return { id: snap.id, ...(snap.data() as Omit<CustomRole, 'id'>) };
+}
+
+/** Built-in rollar üçün redaktə edilmiş səlahiyyət matrisini gətirir */
+export async function fetchRolePermissions(): Promise<PermissionMatrix | null> {
+  const snap = await getDoc(doc(getDb(), 'settings', 'role_permissions'));
+  if (!snap.exists()) return null;
+  return (snap.data().matrix ?? null) as PermissionMatrix | null;
+}
+
+/** Səlahiyyət matrisini yadda saxlayır (Rol İdarəetməsi) */
+export async function saveRolePermissions(matrix: PermissionMatrix, actor: Actor): Promise<void> {
+  await setDoc(doc(getDb(), 'settings', 'role_permissions'), { matrix, updatedAt: serverTimestamp() }, { merge: true });
+  await logAudit({ userId: actor.uid, username: actor.username, action: 'UPDATE', entityType: 'Role', entityId: 'role_permissions' });
 }

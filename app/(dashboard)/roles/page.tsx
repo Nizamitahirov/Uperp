@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { orderBy } from 'firebase/firestore';
-import { Loader2, Plus, ShieldCheck, Trash2 } from 'lucide-react';
+import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { listDocs } from '@/lib/firebase/firestore';
 import { createCustomRole, deleteCustomRole } from '@/lib/firebase/roles';
 import { useAuth } from '@/components/providers/auth-provider';
@@ -12,7 +12,6 @@ import {
   ALL_ROLE_CODES,
   MODULE_KEYS,
   MODULE_LABELS,
-  getPermissions,
   type ModuleKey,
   type PermissionAction,
 } from '@/lib/rbac/permissions';
@@ -26,6 +25,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from '@/components/ui/toast';
+import { PermissionMatrixEditor } from './permission-matrix-editor';
 
 const ACTION_SHORT: Record<PermissionAction, string> = { create: 'C', read: 'R', update: 'U', delete: 'D', approve: 'A' };
 const ACTIONS: PermissionAction[] = ['create', 'read', 'update', 'delete', 'approve'];
@@ -129,35 +129,8 @@ export default function RolesPage() {
         </Card>
       )}
 
-      {/* Səlahiyyət matrisi */}
-      <Card className="rounded-card">
-        <CardHeader>
-          <div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" /><CardTitle className="text-base">Səlahiyyət Matrisi</CardTitle></div>
-          <p className="text-xs text-muted-foreground">C=Create · R=Read · U=Update · D=Delete · A=Approve · —=Yoxdur</p>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="sticky left-0 bg-card">Modul</TableHead>
-                {ALL_ROLE_CODES.map((code) => <TableHead key={code} className="text-center whitespace-nowrap">{ROLES[code].name}</TableHead>)}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {MODULE_KEYS.map((module) => (
-                <TableRow key={module}>
-                  <TableCell className="sticky left-0 bg-card font-medium whitespace-nowrap">{MODULE_LABELS[module]}</TableCell>
-                  {ALL_ROLE_CODES.map((code) => {
-                    const actions = getPermissions(code, module);
-                    const text = actions.length === 0 ? '—' : actions.map((a) => ACTION_SHORT[a]).join('');
-                    return <TableCell key={code} className={`text-center font-mono text-xs ${actions.length === 0 ? 'text-muted-foreground' : 'font-semibold'}`}>{text}</TableCell>;
-                  })}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {/* Redaktə edilə bilən səlahiyyət matrisi */}
+      <PermissionMatrixEditor canManage={canManage} actor={actor} />
 
       {/* Custom rol yaratma dialoqu */}
       <Dialog open={open} onOpenChange={setOpen}>

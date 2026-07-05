@@ -4,9 +4,9 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase/config';
 import { fetchUserProfile } from '@/lib/firebase/auth';
-import { fetchCustomRole } from '@/lib/firebase/roles';
+import { fetchCustomRole, fetchRolePermissions } from '@/lib/firebase/roles';
 import type { AppUser, RoleCode } from '@/types';
-import { can, canAccessModule, ROLES, type ModuleKey, type PermissionAction } from '@/lib/rbac/permissions';
+import { can, canAccessModule, ROLES, setPermissionOverrides, type ModuleKey, type PermissionAction } from '@/lib/rbac/permissions';
 
 interface AuthContextValue {
   firebaseUser: FirebaseUser | null;
@@ -25,7 +25,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<AppUser | null>(null);
   const [customPerms, setCustomPerms] = useState<Record<string, string[]> | null>(null);
+  const [, setPermVersion] = useState(0); // matris yüklənəndə re-render tetikləyir
   const [loading, setLoading] = useState(true);
+
+  // Built-in rolların redaktə edilmiş səlahiyyət matrisini yüklə və tətbiq et
+  useEffect(() => {
+    if (!isFirebaseConfigured) return;
+    fetchRolePermissions()
+      .then((m) => { setPermissionOverrides(m); setPermVersion((v) => v + 1); })
+      .catch(() => { /* default matris qalır */ });
+  }, []);
 
   async function loadProfile(uid: string) {
     const p = await fetchUserProfile(uid);

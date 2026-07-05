@@ -140,9 +140,35 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
   settings: 'Tənzimləmələr',
 };
 
-/** Verilmiş rol üçün modula aid əməliyyat siyahısı (matris görünüşü üçün) */
-export function getPermissions(role: RoleCode, module: ModuleKey): PermissionAction[] {
+/**
+ * Redaktə edilə bilən səlahiyyət matrisi (Firestore: settings/role_permissions).
+ * Rol İdarəetməsi səhifəsindən dəyişdirilir; `setPermissionOverrides` ilə tətbiq olunur.
+ * Boş massiv ([]) = "aşkar səlahiyyət yoxdur" (default-u ləğv edir).
+ */
+export type PermissionMatrix = Partial<Record<RoleCode, Partial<Record<ModuleKey, PermissionAction[]>>>>;
+
+let OVERRIDES: PermissionMatrix | null = null;
+
+/** AuthProvider və Rol İdarəetməsi tərəfindən çağırılır — cari sessiyaya override tətbiq edir */
+export function setPermissionOverrides(overrides: PermissionMatrix | null): void {
+  OVERRIDES = overrides;
+  matrixCache.clear();
+}
+
+/** Default (kod daxilindəki) matris — reset üçün */
+export function getDefaultPermissions(role: RoleCode, module: ModuleKey): PermissionAction[] {
   return MATRIX[module]?.[role] ?? [];
+}
+
+function resolveActions(role: RoleCode, module: ModuleKey): PermissionAction[] {
+  const o = OVERRIDES?.[role]?.[module];
+  if (o !== undefined) return o;
+  return MATRIX[module]?.[role] ?? [];
+}
+
+/** Verilmiş rol üçün modula aid effektiv əməliyyat siyahısı (override + default) */
+export function getPermissions(role: RoleCode, module: ModuleKey): PermissionAction[] {
+  return resolveActions(role, module);
 }
 
 const matrixCache = new Map<string, ActionSet>();
@@ -151,7 +177,7 @@ function getActionSet(role: RoleCode, module: ModuleKey): ActionSet {
   const key = `${role}:${module}`;
   let set = matrixCache.get(key);
   if (!set) {
-    set = new Set(MATRIX[module]?.[role] ?? []);
+    set = new Set(resolveActions(role, module));
     matrixCache.set(key, set);
   }
   return set;

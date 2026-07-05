@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Pause, Pencil, Play, Plus, Trash2, Workflow as WorkflowIcon, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Pause, Pencil, Play, Plus, Trash2, Workflow as WorkflowIcon, Zap, Activity, CheckCircle2 } from 'lucide-react';
 import { listDocs } from '@/lib/firebase/firestore';
 import { setWorkflowStatus, deleteWorkflow } from '@/lib/firebase/workflows';
 import { useAuth } from '@/components/providers/auth-provider';
@@ -74,6 +74,16 @@ export default function WorkflowsPage() {
         action={canManage && <Button onClick={() => { setEditing(null); setBuilderOpen(true); }}><Plus /> Yeni workflow</Button>}
       />
 
+      {/* Statistika zolağı */}
+      {!isLoading && workflows.length > 0 && (
+        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatChip icon={WorkflowIcon} tint="bg-primary/10 text-primary" value={String(workflows.length)} label="Cəmi workflow" />
+          <StatChip icon={CheckCircle2} tint="bg-emerald-500/10 text-emerald-600" value={String(workflows.filter((w) => w.status === 'active').length)} label="Aktiv" />
+          <StatChip icon={Pause} tint="bg-amber-500/10 text-amber-600" value={String(workflows.filter((w) => w.status !== 'active').length)} label="Passiv/qaralama" />
+          <StatChip icon={Activity} tint="bg-sky-500/10 text-sky-600" value={String(workflows.reduce((a, w) => a + (w.runCount ?? 0), 0))} label="Ümumi icra" />
+        </div>
+      )}
+
       {isLoading ? (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-40 w-full rounded-card" />)}</div>
       ) : workflows.length === 0 ? (
@@ -105,15 +115,16 @@ export default function WorkflowsPage() {
 
                   {w.description && <p className="mt-2 text-sm text-muted-foreground">{w.description}</p>}
 
-                  {/* Mini axın */}
-                  <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                    <span className="inline-flex items-center gap-1 rounded-button bg-warning/10 px-2 py-1 text-[11px] font-medium text-warning"><Zap className="h-3 w-3" /> {trig?.label ?? w.trigger}</span>
-                    {w.steps.slice(0, 4).map((s) => {
+                  {/* Mini axın — trigger → əməliyyatlar */}
+                  <div className="mt-3 flex flex-wrap items-center gap-1.5 rounded-xl border border-border bg-secondary/30 p-2">
+                    <span className="inline-flex items-center gap-1 rounded-lg bg-amber-500/15 px-2 py-1 text-[11px] font-semibold text-amber-600"><Zap className="h-3 w-3" /> {trig?.label ?? w.trigger}</span>
+                    {w.steps.length > 0 && <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                    {w.steps.slice(0, 3).map((s) => {
                       const d = ACTION_MAP.get(s.type);
                       if (!d) return null;
-                      return <span key={s.id} className="inline-flex items-center gap-1 rounded-button bg-secondary px-2 py-1 text-[11px] font-medium text-foreground"><d.icon className="h-3 w-3" /> {d.label}</span>;
+                      return <span key={s.id} className={cn('inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium', d.tint)}><d.icon className="h-3 w-3" /> {d.label}</span>;
                     })}
-                    {w.steps.length > 4 && <span className="text-[11px] text-muted-foreground">+{w.steps.length - 4}</span>}
+                    {w.steps.length > 3 && <span className="rounded-lg bg-secondary px-2 py-1 text-[11px] font-medium text-muted-foreground">+{w.steps.length - 3}</span>}
                   </div>
 
                   {canManage && (
@@ -134,6 +145,18 @@ export default function WorkflowsPage() {
 
       <WorkflowBuilder open={builderOpen} onOpenChange={setBuilderOpen} initial={editing} users={users} onSaved={() => qc.invalidateQueries({ queryKey: ['workflows'] })} />
       <ConfirmDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)} title="Workflow sil" description={`"${deleteTarget?.name}" silinsin?`} onConfirm={handleDelete} loading={deleting} />
+    </div>
+  );
+}
+
+function StatChip({ icon: Icon, tint, value, label }: { icon: typeof Zap; tint: string; value: string; label: string }) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-soft">
+      <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-xl', tint)}><Icon className="h-5 w-5" /></span>
+      <div className="min-w-0">
+        <p className="text-xl font-bold leading-tight">{value}</p>
+        <p className="truncate text-xs text-muted-foreground">{label}</p>
+      </div>
     </div>
   );
 }

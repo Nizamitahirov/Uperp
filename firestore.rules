@@ -19,22 +19,45 @@ service cloud.firestore {
       return signedIn() && userDoc().isActive == true;
     }
 
+    // ── Dinamik səlahiyyət matrisi (settings/role_permissions) ──
+    // Admin Rol İdarəetməsindən dəyişdikdə server-tərəf tətbiq olunur.
+    // Override sənədi yoxdursa hər modul öz default rol siyahısına düşür.
+    function permMatrix() {
+      return exists(/databases/$(database)/documents/settings/role_permissions)
+        ? get(/databases/$(database)/documents/settings/role_permissions).data.get('matrix', {})
+        : {};
+    }
+    // Verilmiş modul üçün cari rolun override əməliyyatları (yoxdursa null)
+    function roleActions(module) {
+      return permMatrix().get(getRole(), {}).get(module, null);
+    }
+    // Effektiv icazə: director həmişə tam; override varsa onu, yoxsa default rolları yoxla
+    function can(module, action, fallbackRoles) {
+      return signedIn() && (hasRole(['director']) || canOverride(module, action, fallbackRoles));
+    }
+    function canOverride(module, action, fallbackRoles) {
+      return roleActions(module) == null
+        ? hasRole(fallbackRoles)
+        : (action in roleActions(module));
+    }
+
     // ── İstifadəçilər ───────────────────────────────────────
     match /users/{uid} {
-      // Hər kəs öz profilini oxuya bilər; director hamısını
-      allow read: if signedIn() && (uid == request.auth.uid || hasRole(['director']));
+      // Öz profilini oxuya bilər; 'users' modulunda read olan rollar hamısını
+      allow read: if signedIn() && (uid == request.auth.uid || can('users','read',['director']));
       // İlk Google login-də öz customer profilini yarada bilər
-      allow create: if signedIn() && uid == request.auth.uid && request.resource.data.role == 'customer';
-      // Director tam idarə edir; istifadəçi yalnız lastLogin yeniləyə bilər
-      allow update: if hasRole(['director']) ||
+      allow create: if (signedIn() && uid == request.auth.uid && request.resource.data.role == 'customer')
+                    || can('users','create',['director']);
+      // 'users' update səlahiyyəti olan rollar; istifadəçi yalnız lastLogin/avatarUrl özünü
+      allow update: if can('users','update',['director']) ||
                        (uid == request.auth.uid &&
-                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLogin']));
-      allow delete: if hasRole(['director']);
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLogin','avatarUrl','fullName','phone']));
+      allow delete: if can('users','delete',['director']);
     }
 
     match /roles/{roleId} {
       allow read: if signedIn();
-      allow write: if hasRole(['director']);
+      allow write: if can('roles','update',['director']);
     }
 
     // ── Audit log: yalnız yaratma + director oxuma ──────────
@@ -46,42 +69,46 @@ service cloud.firestore {
 
     // ── Xam material + cost layers ──────────────────────────
     match /raw_materials/{docId} {
-      allow read: if hasRole(['director','accountant','warehouse','production','supply']);
-      allow create, update: if hasRole(['director','warehouse','supply']);
-      allow delete: if hasRole(['director']);
+      allow read: if can('raw_materials','read',['director','accountant','warehouse','production','supply']);
+      allow create: if can('raw_materials','create',['director','warehouse','supply']);
+      allow update: if can('raw_materials','update',['director','warehouse','supply']);
+      allow delete: if can('raw_materials','delete',['director']);
 
       match /cost_layers/{layerId} {
-        allow read: if hasRole(['director','accountant','warehouse','production','supply']);
-        allow write: if hasRole(['director','warehouse','supply']);
+        allow read: if can('raw_materials','read',['director','accountant','warehouse','production','supply']);
+        allow write: if can('raw_materials','update',['director','warehouse','supply']);
       }
     }
 
     match /stock_movements/{docId} {
-      allow read: if hasRole(['director','accountant','warehouse','production','supply']);
-      allow create: if hasRole(['director','warehouse','production','supply']);
-      allow update, delete: if hasRole(['director']);
+      allow read: if can('raw_materials','read',['director','accountant','warehouse','production','supply']);
+      allow create: if can('raw_materials','create',['director','warehouse','production','supply']);
+      allow update, delete: if can('raw_materials','delete',['director']);
     }
 
     // ── BOM ─────────────────────────────────────────────────
     match /boms/{docId} {
-      allow read: if hasRole(['director','accountant','warehouse','production']);
-      allow create, update: if hasRole(['director','production']);
-      allow delete: if hasRole(['director']);
+      allow read: if can('bom','read',['director','accountant','warehouse','production']);
+      allow create: if can('bom','create',['director','production']);
+      allow update: if can('bom','update',['director','production']);
+      allow delete: if can('bom','delete',['director']);
     }
 
     // ── Təchizatçılar ───────────────────────────────────────
     match /suppliers/{docId} {
-      allow read: if hasRole(['director','accountant','warehouse','supply']);
-      allow create, update: if hasRole(['director','supply']);
-      allow delete: if hasRole(['director']);
+      allow read: if can('suppliers','read',['director','accountant','warehouse','supply']);
+      allow create: if can('suppliers','create',['director','supply']);
+      allow update: if can('suppliers','update',['director','supply']);
+      allow delete: if can('suppliers','delete',['director']);
     }
 
     // ── Müştərilər (customer yalnız özünü) ──────────────────
     match /customers/{customerId} {
-      allow read: if hasRole(['director','accountant','sales','cashier'])
+      allow read: if can('customers','read',['director','accountant','sales','cashier'])
                   || (hasRole(['customer']) && customerId == request.auth.uid);
-      allow create, update: if hasRole(['director','sales']);
-      allow delete: if hasRole(['director']);
+      allow create: if can('customers','create',['director','sales']);
+      allow update: if can('customers','update',['director','sales']);
+      allow delete: if can('customers','delete',['director']);
     }
 
     match /deals/{docId} {
@@ -93,48 +120,56 @@ service cloud.firestore {
 
     // ── Satınalma ───────────────────────────────────────────
     match /purchase_requests/{docId} {
-      allow read: if hasRole(['director','accountant','warehouse','supply']);
-      allow create, update: if hasRole(['director','supply','warehouse']);
-      allow delete: if hasRole(['director']);
+      allow read: if can('purchase_orders','read',['director','accountant','warehouse','supply']);
+      allow create: if can('purchase_orders','create',['director','supply','warehouse']);
+      allow update: if can('purchase_orders','update',['director','supply','warehouse']);
+      allow delete: if can('purchase_orders','delete',['director']);
     }
     match /purchase_orders/{docId} {
-      allow read: if hasRole(['director','accountant','warehouse','supply']);
-      allow create, update: if hasRole(['director','supply']);
-      allow delete: if hasRole(['director']);
+      allow read: if can('purchase_orders','read',['director','accountant','warehouse','supply']);
+      allow create: if can('purchase_orders','create',['director','supply']);
+      allow update: if can('purchase_orders','update',['director','supply']);
+      allow delete: if can('purchase_orders','delete',['director']);
     }
     match /grns/{docId} {
-      allow read: if hasRole(['director','accountant','warehouse','production','supply']);
-      allow create, update: if hasRole(['director','warehouse']);
-      allow delete: if hasRole(['director']);
+      allow read: if can('grn','read',['director','accountant','warehouse','production','supply']);
+      allow create: if can('grn','create',['director','warehouse']);
+      allow update: if can('grn','update',['director','warehouse']);
+      allow delete: if can('grn','delete',['director']);
     }
 
     // ── İstehsal ────────────────────────────────────────────
     match /production_orders/{docId} {
-      allow read: if hasRole(['director','accountant','warehouse','production']);
-      allow create, update: if hasRole(['director','production']);
-      allow delete: if hasRole(['director']);
+      allow read: if can('production_orders','read',['director','accountant','warehouse','production']);
+      allow create: if can('production_orders','create',['director','production']);
+      allow update: if can('production_orders','update',['director','production']);
+      allow delete: if can('production_orders','delete',['director']);
     }
     match /washing_orders/{docId} {
-      allow read: if hasRole(['director','accountant','warehouse','production']);
-      allow create, update: if hasRole(['director','production']);
-      allow delete: if hasRole(['director']);
+      allow read: if can('washing','read',['director','accountant','warehouse','production']);
+      allow create: if can('washing','create',['director','production']);
+      allow update: if can('washing','update',['director','production']);
+      allow delete: if can('washing','delete',['director']);
     }
     match /qc_inspections/{docId} {
-      allow read: if hasRole(['director','accountant','warehouse','production']);
-      allow create, update: if hasRole(['director','production']);
-      allow delete: if hasRole(['director']);
+      allow read: if can('quality_control','read',['director','accountant','warehouse','production']);
+      allow create: if can('quality_control','create',['director','production']);
+      allow update: if can('quality_control','update',['director','production']);
+      allow delete: if can('quality_control','delete',['director']);
     }
 
     // ── Hazır məhsul + kataloq ──────────────────────────────
     match /finished_goods/{docId} {
       allow read: if signedIn();
-      allow create, update: if hasRole(['director','warehouse','production']);
-      allow delete: if hasRole(['director']);
+      allow create: if can('finished_goods','create',['director','warehouse','production']);
+      allow update: if can('finished_goods','update',['director','warehouse','production']);
+      allow delete: if can('finished_goods','delete',['director']);
     }
     match /products/{productId} {
       allow read: if signedIn();
-      allow create, update: if hasRole(['director','production']);
-      allow delete: if hasRole(['director']);
+      allow create: if can('products','create',['director','production']);
+      allow update: if can('products','update',['director','production']);
+      allow delete: if can('products','delete',['director']);
     }
     // Kataloq jurnalları — hamı oxuya bilər (müştəri preview), idarəçi yazır
     match /catalogs/{catalogId} {
@@ -176,59 +211,61 @@ service cloud.firestore {
 
     // ── Satış ───────────────────────────────────────────────
     match /quotations/{docId} {
-      allow read: if hasRole(['director','accountant','sales','cashier']);
-      allow write: if hasRole(['director','sales']);
+      allow read: if can('sales_orders','read',['director','accountant','sales','cashier']);
+      allow write: if can('sales_orders','update',['director','sales']);
     }
     match /sales_orders/{docId} {
-      allow read: if hasRole(['director','accountant','sales','cashier'])
+      allow read: if can('sales_orders','read',['director','accountant','sales','cashier'])
                   || (hasRole(['customer']) && resource.data.customerId == request.auth.uid);
-      allow create: if hasRole(['director','sales','cashier','customer']);
-      allow update: if hasRole(['director','sales','cashier']);
-      allow delete: if hasRole(['director']);
+      allow create: if can('sales_orders','create',['director','sales','cashier']) || hasRole(['customer']);
+      allow update: if can('sales_orders','update',['director','sales','cashier']);
+      allow delete: if can('sales_orders','delete',['director']);
     }
     match /deliveries/{docId} {
-      allow read: if hasRole(['director','accountant','sales','warehouse']);
-      allow write: if hasRole(['director','sales','warehouse']);
+      allow read: if can('sales_orders','read',['director','accountant','sales','warehouse']);
+      allow write: if can('sales_orders','update',['director','sales','warehouse']);
     }
     match /pos_sales/{docId} {
-      allow read: if hasRole(['director','accountant','sales','cashier']);
-      allow create, update: if hasRole(['director','cashier']);
-      allow delete: if hasRole(['director']);
+      allow read: if can('pos','read',['director','accountant','sales','cashier']);
+      allow create: if can('pos','create',['director','cashier']);
+      allow update: if can('pos','update',['director','cashier']);
+      allow delete: if can('pos','delete',['director']);
     }
     match /sales_returns/{docId} {
-      allow read: if hasRole(['director','accountant','sales','cashier']);
-      allow write: if hasRole(['director','sales','cashier']);
+      allow read: if can('sales_orders','read',['director','accountant','sales','cashier']);
+      allow write: if can('sales_orders','update',['director','sales','cashier']);
     }
 
     // ── Maliyyə ─────────────────────────────────────────────
     match /cash_registers/{docId} {
-      allow read: if hasRole(['director','accountant','cashier']);
-      allow write: if hasRole(['director','accountant','cashier']);
+      allow read: if can('cash','read',['director','accountant','cashier']);
+      allow write: if can('cash','update',['director','accountant','cashier']);
     }
     match /cash_transactions/{docId} {
-      allow read: if hasRole(['director','accountant','cashier']);
-      allow create: if hasRole(['director','accountant','cashier']);
-      allow update, delete: if hasRole(['director','accountant']);
+      allow read: if can('cash','read',['director','accountant','cashier']);
+      allow create: if can('cash','create',['director','accountant','cashier']);
+      allow update, delete: if can('cash','delete',['director','accountant']);
     }
     match /invoices/{docId} {
-      allow read: if hasRole(['director','accountant','sales','cashier'])
+      allow read: if can('invoices','read',['director','accountant','sales','cashier'])
                   || (hasRole(['customer']) && resource.data.customerId == request.auth.uid);
-      allow write: if hasRole(['director','accountant']);
+      allow write: if can('invoices','update',['director','accountant']);
     }
     match /receivables/{docId} {
-      allow read: if hasRole(['director','accountant','sales']);
-      allow write: if hasRole(['director','accountant']);
+      allow read: if can('receivables','read',['director','accountant','sales']);
+      allow write: if can('receivables','update',['director','accountant']);
     }
     match /payables/{docId} {
-      allow read: if hasRole(['director','accountant','supply']);
-      allow write: if hasRole(['director','accountant']);
+      allow read: if can('payables','read',['director','accountant','supply']);
+      allow write: if can('payables','update',['director','accountant']);
     }
     match /payment_receipts/{docId} {
-      allow read: if hasRole(['director','accountant','sales','cashier']);
-      allow write: if hasRole(['director','accountant']);
+      allow read: if can('invoices','read',['director','accountant','sales','cashier']);
+      allow write: if can('invoices','update',['director','accountant']);
     }
     match /expenses/{docId} {
-      allow read, write: if hasRole(['director','accountant']);
+      allow read: if can('finance','read',['director','accountant']);
+      allow write: if can('finance','update',['director','accountant']);
     }
 
     // ── Nömrə sayğacları (PO/GRN ardıcıllığı) ───────────────
@@ -251,6 +288,32 @@ service cloud.firestore {
     match /exchange_rates/{docId} {
       allow read: if signedIn();
       allow write: if hasRole(['director','accountant']);
+    }
+
+    // ── İnventarizasiya (fiziki sayım) ──────────────────────
+    match /stocktakes/{docId} {
+      allow read: if can('raw_materials','read',['director','accountant','warehouse','production']);
+      allow create: if can('raw_materials','create',['director','warehouse']);
+      allow update: if can('raw_materials','update',['director','warehouse']);
+      allow delete: if can('raw_materials','delete',['director']);
+    }
+    // ── Anbarlar + anbarlararası transfer ───────────────────
+    match /warehouses/{docId} {
+      allow read: if signedIn();
+      allow write: if can('raw_materials','update',['director','warehouse']);
+    }
+    match /stock_transfers/{docId} {
+      allow read: if can('raw_materials','read',['director','accountant','warehouse','production']);
+      allow create: if can('raw_materials','create',['director','warehouse']);
+      allow update: if can('raw_materials','update',['director','warehouse']);
+      allow delete: if can('raw_materials','delete',['director']);
+    }
+    // ── İstehsal əməliyyatları (shop-floor) ─────────────────
+    match /production_operations/{docId} {
+      allow read: if can('production_orders','read',['director','accountant','warehouse','production']);
+      allow create: if can('production_orders','create',['director','production']);
+      allow update: if can('production_orders','update',['director','production']);
+      allow delete: if can('production_orders','delete',['director']);
     }
 
     // Default: qadağa

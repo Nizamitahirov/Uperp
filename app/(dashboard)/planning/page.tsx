@@ -5,12 +5,11 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { where } from 'firebase/firestore';
 import { Loader2, Sparkles } from 'lucide-react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { listDocs, getDocById } from '@/lib/firebase/firestore';
 import { computeRequirements } from '@/lib/firebase/production';
 import { aiPrompt } from '@/lib/ai/client';
 import { ChartCard } from '@/components/charts/chart-card';
-import { CHART_COLORS } from '@/components/charts/palette';
 import { ExportButton } from '@/components/shared/export-button';
 import type { BOM, FinishedGoodStock, ProductionOrder, RawMaterial } from '@/types';
 import { formatNumber } from '@/lib/utils/format';
@@ -116,13 +115,7 @@ export default function PlanningPage() {
           {reorderChart.length > 0 && (
             <div className="mb-4">
               <ChartCard title="Sifariş tövsiyəsi (top materiallar)" type="column" data={reorderChart} context="tövsiyə olunan sifariş miqdarı (material vahidi ilə)">
-                <ResponsiveContainer width="100%" height={240}>
-                  <BarChart data={reorderChart}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="name" fontSize={11} /><YAxis fontSize={12} /><Tooltip />
-                    <Bar dataKey="Sifariş" radius={[6, 6, 0, 0]}>{reorderChart.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}</Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                <RankBars data={reorderChart} dataKey="Sifariş" gradientId="reorderGrad" />
               </ChartCard>
             </div>
           )}
@@ -169,13 +162,7 @@ export default function PlanningPage() {
           {produceChart.length > 0 && (
             <div className="mb-4">
               <ChartCard title="İstehsal tövsiyəsi (top variantlar)" type="column" data={produceChart} context="tövsiyə olunan istehsal miqdarı (ədəd)">
-                <ResponsiveContainer width="100%" height={240}>
-                  <BarChart data={produceChart}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="name" fontSize={11} /><YAxis fontSize={12} /><Tooltip />
-                    <Bar dataKey="İstehsal" radius={[6, 6, 0, 0]}>{produceChart.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}</Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                <RankBars data={produceChart} dataKey="İstehsal" gradientId="produceGrad" />
               </ChartCard>
             </div>
           )}
@@ -217,5 +204,27 @@ export default function PlanningPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+/** Müasir, kompakt üfüqi reytinq qrafiki — qradient dolğu, hizalanmış etiketlər */
+function RankBars({ data, dataKey, gradientId }: { data: { name: string }[]; dataKey: string; gradientId: string }) {
+  const height = Math.max(150, data.length * 34 + 24);
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={data} layout="vertical" barCategoryGap="24%" margin={{ left: 4, right: 16, top: 4, bottom: 4 }}>
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#8b3df0" />
+            <stop offset="100%" stopColor="#5B5BF5" />
+          </linearGradient>
+        </defs>
+        <CartesianGrid horizontal={false} strokeDasharray="3 3" className="stroke-muted" />
+        <XAxis type="number" fontSize={10} tickLine={false} axisLine={false} />
+        <YAxis type="category" dataKey="name" width={140} fontSize={11} tickLine={false} axisLine={false} />
+        <Tooltip cursor={{ fill: 'rgba(91,91,245,0.06)' }} formatter={(v: number) => formatNumber(v)} />
+        <Bar dataKey={dataKey} fill={`url(#${gradientId})`} radius={[0, 6, 6, 0]} barSize={16} />
+      </BarChart>
+    </ResponsiveContainer>
   );
 }

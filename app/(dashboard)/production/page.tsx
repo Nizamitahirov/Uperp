@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { orderBy } from 'firebase/firestore';
@@ -12,6 +13,7 @@ import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
 import { ExportButton } from '@/components/shared/export-button';
 import { EmptyState } from '@/components/shared/empty-state';
+import { FilterBar, ALL } from '@/components/shared/filter-bar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -21,6 +23,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 export default function ProductionListPage() {
   const { can } = useAuth();
   const canCreate = can('production_orders', 'create');
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState(ALL);
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ['production_orders'],
     queryFn: () => listDocs<ProductionOrder>('production_orders', [orderBy('createdAt', 'desc')]),
@@ -30,30 +34,47 @@ export default function ProductionListPage() {
     return (ts as { toMillis?: () => number })?.toMillis?.();
   }
 
+  const filtered = useMemo(() => {
+    const s = search.trim().toLowerCase();
+    return orders.filter((o) => {
+      if (status !== ALL && o.status !== status) return false;
+      if (s && !(o.orderNumber?.toLowerCase().includes(s) || o.productName?.toLowerCase().includes(s))) return false;
+      return true;
+    });
+  }, [orders, search, status]);
+
   return (
     <div>
       <PageHeader
         title="İstehsal Sifarişləri"
         subtitle="MES — material çıxımı, yuyulma, QC, hazır məhsul"
-        action={
-          <div className="flex gap-2">
-            <ExportButton filename="istehsal-sifarisleri" rows={orders} columns={[
-              { header: 'Nömrə', value: 'orderNumber' },
-              { header: 'Məhsul', value: (o) => o.productName ?? '' },
-              { header: 'Miqdar', value: 'totalQuantity' },
-              { header: 'İstehsal', value: (o) => o.producedQuantity ?? '' },
-              { header: 'Faktiki maya', value: 'totalActualCost' },
-              { header: 'Status', value: 'status' },
-            ]} />
-            {canCreate && <Button asChild><Link href="/production/new"><Plus /> Yeni sifariş</Link></Button>}
-          </div>
+        action={canCreate ? <Button asChild><Link href="/production/new"><Plus /> Yeni sifariş</Link></Button> : undefined}
+      />
+
+      <FilterBar
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Sifariş nömrəsi və ya məhsul..."
+        filters={[
+          { key: 'status', placeholder: 'Status', value: status, onChange: setStatus, allLabel: 'Bütün statuslar', options: Object.entries(PRODUCTION_STATUS_META).map(([v, m]) => ({ value: v, label: m.label })) },
+        ]}
+        right={
+          <ExportButton filename="istehsal-sifarisleri" rows={filtered} columns={[
+            { header: 'Nömrə', value: 'orderNumber' },
+            { header: 'Məhsul', value: (o) => o.productName ?? '' },
+            { header: 'Miqdar', value: 'totalQuantity' },
+            { header: 'İstehsal', value: (o) => o.producedQuantity ?? '' },
+            { header: 'Faktiki maya', value: 'totalActualCost' },
+            { header: 'Status', value: 'status' },
+          ]} />
         }
       />
+
       <Card className="rounded-card">
         {isLoading ? (
           <div className="space-y-2 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
-        ) : orders.length === 0 ? (
-          <EmptyState title="Sifariş tapılmadı" description="Hələ istehsal sifarişi yoxdur" action={canCreate ? <Button asChild><Link href="/production/new"><Plus /> Yeni sifariş</Link></Button> : undefined} />
+        ) : filtered.length === 0 ? (
+          <EmptyState title="Sifariş tapılmadı" description={orders.length ? 'Filtrə uyğun nəticə yoxdur' : 'Hələ istehsal sifarişi yoxdur'} action={canCreate && !orders.length ? <Button asChild><Link href="/production/new"><Plus /> Yeni sifariş</Link></Button> : undefined} />
         ) : (
           <Table>
             <TableHeader>
@@ -67,7 +88,7 @@ export default function ProductionListPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {orders.map((o) => {
+              {filtered.map((o) => {
                 const meta = PRODUCTION_STATUS_META[o.status] ?? PRODUCTION_STATUS_META.planned;
                 return (
                   <TableRow key={o.id}>

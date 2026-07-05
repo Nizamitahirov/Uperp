@@ -5,15 +5,15 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { orderBy, where } from 'firebase/firestore';
 import Link from 'next/link';
 import { Loader2, Wallet } from 'lucide-react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { listDocs } from '@/lib/firebase/firestore';
 import { recordCustomerPayment, payPayable, createExpense, setExpenseStatus } from '@/lib/firebase/finance';
 import { useAuth } from '@/components/providers/auth-provider';
 import type { CashRegister, Expense, ExpenseCategory, Payable, Receivable } from '@/types';
 import { ARAP_STATUS_META, EXPENSE_CATEGORIES } from '@/lib/constants';
 import { buildAging } from '@/lib/utils/aging';
+import { cn } from '@/lib/utils/cn';
 import { ChartCard } from '@/components/charts/chart-card';
-import { CHART_COLORS } from '@/components/charts/palette';
 import { AiWriteButton } from '@/components/ai/ai-write-button';
 import { ExportButton } from '@/components/shared/export-button';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
@@ -117,24 +117,53 @@ export default function FinancePage() {
         <Button variant="outline" asChild><Link href="/cash"><Wallet className="h-4 w-4" /> Kassa</Link></Button>
       } />
 
-      <div className="mb-4 grid grid-cols-2 gap-4">
-        <Card className="rounded-card"><CardContent className="p-4"><p className="text-xs text-muted-foreground">Debitor (alınacaq)</p><p className="mt-1 text-2xl font-bold text-success">{formatCurrency(arTotal, 'AZN')}</p></CardContent></Card>
-        <Card className="rounded-card"><CardContent className="p-4"><p className="text-xs text-muted-foreground">Kreditor (ödəniləcək)</p><p className="mt-1 text-2xl font-bold text-danger">{formatCurrency(apTotal, 'AZN')}</p></CardContent></Card>
-      </div>
+      <div className="mb-4 grid gap-4 lg:grid-cols-3">
+        {/* Xalis mövqe (net position) */}
+        <Card className="rounded-card">
+          <CardContent className="flex h-full flex-col justify-center gap-3 p-5">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">Xalis mövqe (AR − AP)</p>
+              <p className={cn('mt-1 text-3xl font-bold tracking-tight', arTotal - apTotal >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}>
+                {formatCurrency(arTotal - apTotal, 'AZN')}
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <div className="rounded-xl border border-border bg-[#5B5BF5]/[0.06] p-3">
+                <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground"><span className="h-2 w-2 rounded-full bg-[#5B5BF5]" /> Debitor</span>
+                <p className="mt-1 text-lg font-bold text-[#5B5BF5]">{formatCurrency(arTotal, 'AZN')}</p>
+              </div>
+              <div className="rounded-xl border border-border bg-rose-500/[0.06] p-3">
+                <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground"><span className="h-2 w-2 rounded-full bg-rose-500" /> Kreditor</span>
+                <p className="mt-1 text-lg font-bold text-rose-500">{formatCurrency(apTotal, 'AZN')}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-      <div className="mb-4">
-        <ChartCard title="Debitor vs Kreditor — yaş qrupları" type="grouped bar" data={agingCompare} context="AZN, AR (alınacaq) və AP (ödəniləcək) yaş qrupları üzrə müqayisə">
+        {/* Yaş qrupları — müasir horizontal müqayisə */}
+        <ChartCard className="lg:col-span-2" title="Debitor vs Kreditor — yaş qrupları" type="grouped bar" data={agingCompare} context="AZN, AR (alınacaq) və AP (ödəniləcək) yaş qrupları üzrə müqayisə"
+          action={
+            <div className="hidden items-center gap-3 text-[11px] font-medium text-muted-foreground sm:flex">
+              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#5B5BF5]" /> Debitor</span>
+              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-500" /> Kreditor</span>
+            </div>
+          }
+        >
           {arTotal === 0 && apTotal === 0 ? (
-            <p className="py-12 text-center text-sm text-muted-foreground">Açıq borc yoxdur</p>
+            <p className="py-12 text-center text-sm text-muted-foreground">Açıq borc yoxdur 🟢</p>
           ) : (
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={agingCompare} barGap={6}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="name" fontSize={12} /><YAxis fontSize={12} />
-                <Tooltip formatter={(v: number) => formatCurrency(v, 'AZN')} />
-                <Legend />
-                <Bar dataKey="Debitor" fill={CHART_COLORS[1]} radius={[6, 6, 0, 0]} />
-                <Bar dataKey="Kreditor" fill={CHART_COLORS[3]} radius={[6, 6, 0, 0]} />
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={agingCompare} layout="vertical" barGap={3} barCategoryGap="26%" margin={{ left: 8, right: 12 }}>
+                <defs>
+                  <linearGradient id="arGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#7c6cf5" /><stop offset="100%" stopColor="#5B5BF5" /></linearGradient>
+                  <linearGradient id="apGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#fb7185" /><stop offset="100%" stopColor="#f43f5e" /></linearGradient>
+                </defs>
+                <CartesianGrid horizontal={false} strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis type="number" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(v))} />
+                <YAxis type="category" dataKey="name" fontSize={11} tickLine={false} axisLine={false} width={40} />
+                <Tooltip formatter={(v: number) => formatCurrency(v, 'AZN')} cursor={{ fill: 'rgba(91,91,245,0.06)' }} />
+                <Bar name="Debitor" dataKey="Debitor" fill="url(#arGrad)" radius={[0, 5, 5, 0]} barSize={13} />
+                <Bar name="Kreditor" dataKey="Kreditor" fill="url(#apGrad)" radius={[0, 5, 5, 0]} barSize={13} />
               </BarChart>
             </ResponsiveContainer>
           )}

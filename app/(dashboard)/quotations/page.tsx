@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -14,6 +14,7 @@ import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
 import { ExportButton } from '@/components/shared/export-button';
 import { EmptyState } from '@/components/shared/empty-state';
+import { FilterBar, ALL } from '@/components/shared/filter-bar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -33,12 +34,23 @@ export default function QuotationsPage() {
   const router = useRouter();
   const { profile, can } = useAuth();
   const [working, setWorking] = useState('');
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState(ALL);
   const canManage = can('sales_orders', 'create');
 
   const { data: quotes = [], isLoading } = useQuery({
     queryKey: ['quotations'],
     queryFn: () => listDocs<Quotation>('quotations', [orderBy('createdAt', 'desc')]),
   });
+
+  const filtered = useMemo(() => {
+    const s = search.trim().toLowerCase();
+    return quotes.filter((q) => {
+      if (status !== ALL && q.status !== status) return false;
+      if (s && !(q.quoteNumber?.toLowerCase().includes(s) || q.customerName?.toLowerCase().includes(s))) return false;
+      return true;
+    });
+  }, [quotes, search, status]);
 
   const actor = { uid: profile?.uid ?? '', username: profile?.username ?? '' };
   function tsMillis(t: unknown) { return (t as { toMillis?: () => number })?.toMillis?.(); }
@@ -61,21 +73,30 @@ export default function QuotationsPage() {
   return (
     <div>
       <PageHeader title="Qiymət Təklifləri" subtitle="Quotation → satış sifarişi" action={
-        <div className="flex gap-2">
-          <ExportButton filename="teklifler" rows={quotes} columns={[
+        canManage ? <Button asChild><Link href="/sales/new"><Plus /> Yeni təklif</Link></Button> : undefined
+      } />
+
+      <FilterBar
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="QT nömrəsi və ya müştəri..."
+        filters={[
+          { key: 'status', placeholder: 'Status', value: status, onChange: setStatus, allLabel: 'Bütün statuslar', options: Object.entries(STATUS).map(([v, m]) => ({ value: v, label: m.label })) },
+        ]}
+        right={
+          <ExportButton filename="teklifler" rows={filtered} columns={[
             { header: 'Nömrə', value: 'quoteNumber' },
             { header: 'Müştəri', value: (q) => q.customerName ?? '' },
             { header: 'Məbləğ', value: 'totalAmount' },
             { header: 'Status', value: 'status' },
           ]} />
-          {canManage && <Button asChild><Link href="/sales/new"><Plus /> Yeni təklif</Link></Button>}
-        </div>
-      } />
+        }
+      />
       <Card className="rounded-card">
         {isLoading ? (
           <div className="space-y-2 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
-        ) : quotes.length === 0 ? (
-          <EmptyState title="Təklif yoxdur" description="Satış formundan 'Təklif kimi saxla' ilə yaradın" />
+        ) : filtered.length === 0 ? (
+          <EmptyState title="Təklif yoxdur" description={quotes.length ? 'Filtrə uyğun nəticə yoxdur' : "Satış formundan 'Təklif kimi saxla' ilə yaradın"} />
         ) : (
           <Table>
             <TableHeader>
@@ -85,7 +106,7 @@ export default function QuotationsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {quotes.map((q) => {
+              {filtered.map((q) => {
                 const m = STATUS[q.status] ?? STATUS.sent;
                 return (
                   <TableRow key={q.id}>

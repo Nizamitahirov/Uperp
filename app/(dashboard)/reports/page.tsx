@@ -4,17 +4,19 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Loader2, PackageSearch, Sparkles } from 'lucide-react';
-import { listDocs } from '@/lib/firebase/firestore';
+import { listDocs, getDocById } from '@/lib/firebase/firestore';
 import { checkOverstock } from '@/lib/firebase/notifications';
 import { aiPrompt } from '@/lib/ai/client';
 import { useAuth } from '@/components/providers/auth-provider';
-import type { SalesOrder, Expense, FinishedGoodStock, RawMaterial, Receivable, Payable, Customer } from '@/types';
-import { EXPENSE_CATEGORIES, VAT_RATE, CUSTOMER_SEGMENTS } from '@/lib/constants';
+import type { SalesOrder, Expense, FinishedGoodStock, RawMaterial, Receivable, Payable, Customer, CashRegister } from '@/types';
+import { EXPENSE_CATEGORIES, CUSTOMER_SEGMENTS } from '@/lib/constants';
 import { buildAging } from '@/lib/utils/aging';
 import { getStockStatus } from '@/lib/utils/stock';
+import { buildIfrs } from '@/lib/utils/ifrs';
 import { ChartCard } from '@/components/charts/chart-card';
 import { CHART_COLORS } from '@/components/charts/palette';
 import { ExportButton } from '@/components/shared/export-button';
+import { FinancialStatements } from './financial-statements';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
@@ -35,7 +37,7 @@ export default function ReportsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['reports-data'],
     queryFn: async () => {
-      const [sales, expenses, finished, materials, receivables, payables, customers] = await Promise.all([
+      const [sales, expenses, finished, materials, receivables, payables, customers, registers] = await Promise.all([
         listDocs<SalesOrder>('sales_orders', []),
         listDocs<Expense>('expenses', []),
         listDocs<FinishedGoodStock>('finished_goods', []),
@@ -43,9 +45,15 @@ export default function ReportsPage() {
         listDocs<Receivable>('receivables', []),
         listDocs<Payable>('payables', []),
         listDocs<Customer>('customers', []),
+        listDocs<CashRegister>('cash_registers', []),
       ]);
-      return { sales, expenses, finished, materials, receivables, payables, customers };
+      return { sales, expenses, finished, materials, receivables, payables, customers, registers };
     },
+  });
+
+  const { data: settings } = useQuery({
+    queryKey: ['settings-global'],
+    queryFn: () => getDocById<{ companyName?: string; taxNumber?: string; address?: string; phone?: string; email?: string }>('settings', 'global'),
   });
 
   const pnl = useMemo(() => {
@@ -69,6 +77,23 @@ export default function ReportsPage() {
     for (const e of data.expenses) map.set(EXPENSE_CATEGORIES[e.category], (map.get(EXPENSE_CATEGORIES[e.category]) ?? 0) + e.amount);
     return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
   }, [data]);
+
+  const ifrs = useMemo(() => {
+    if (!data || !pnl) return null;
+    const expensesByCategory: Record<string, number> = {};
+    for (const e of data.expenses) expensesByCategory[e.category] = (expensesByCategory[e.category] ?? 0) + e.amount;
+    const rawInventory = data.materials.reduce((a, m) => a + (m.stockValue ?? 0), 0);
+    const fgInventory = data.finished.reduce((a, f) => a + (f.currentStock ?? 0) * (f.unitCost ?? 0), 0);
+    const cash = data.registers.reduce((a, r) => a + (r.currentBalance ?? 0), 0);
+    const receivables = data.receivables.reduce((a, r) => a + (r.balance ?? 0), 0);
+    const payables = data.payables.reduce((a, p) => a + (p.balance ?? 0), 0);
+    return buildIfrs({ revenue: pnl.revenue, cogs: pnl.cogs, expensesByCategory, receivables, payables, rawInventory, fgInventory, cash });
+  }, [data, pnl]);
+
+  const company = useMemo(() => ({
+    name: settings?.companyName, taxNumber: settings?.taxNumber, address: settings?.address, phone: settings?.phone, email: settings?.email,
+  }), [settings]);
+  const periodLabel = useMemo(() => `${new Date().getFullYear()}-ci il (cari mövqe)`, []);
 
   const salesByProduct = useMemo(() => {
     if (!data) return [];
@@ -176,23 +201,14 @@ export default function ReportsPage() {
         </TabsList>
 
         <TabsContent value="finance">
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Card className="rounded-card">
-              <CardHeader><CardTitle className="text-base">Mənfəət və Zərər (P&L)</CardTitle></CardHeader>
-              <CardContent className="space-y-1 text-sm">
-                <Row label="Satışdan gəlir (net)" value={formatCurrency(pnl.revenue, 'AZN')} />
-                <Row label="(−) COGS (FIFO/AVCO)" value={formatCurrency(pnl.cogs, 'AZN')} />
-                <Row label="= Ümumi mənfəət" value={`${formatCurrency(pnl.grossProfit, 'AZN')} (${pnl.grossMargin.toFixed(1)}%)`} bold />
-                <Row label="(−) Əməliyyat xərcləri" value={formatCurrency(pnl.totalExpenses, 'AZN')} />
-                <Row label="= Xalis mənfəət" value={`${formatCurrency(pnl.netProfit, 'AZN')} (${pnl.netMargin.toFixed(1)}%)`} bold />
-                <div className="mt-2 border-t pt-2 text-xs text-muted-foreground">Toplanmış ƏDV ({VAT_RATE}%): {formatCurrency(pnl.vatCollected, 'AZN')}</div>
-              </CardContent>
-            </Card>
-            <ChartCard title="Xərclər (kateqoriya üzrə)" type="donut" data={expenseByCategory} context="AZN, xərc kateqoriyaları">
+          {ifrs && <FinancialStatements ifrs={ifrs} company={company} periodLabel={periodLabel} />}
+
+          <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <ChartCard className="lg:col-span-2" title="Xərclərin təhlili (kateqoriya üzrə)" type="donut" data={expenseByCategory} context="AZN, xərc kateqoriyaları">
               {expenseByCategory.length === 0 ? <p className="py-16 text-center text-sm text-muted-foreground">Xərc yoxdur</p> : (
-                <ResponsiveContainer width="100%" height={240}>
+                <ResponsiveContainer width="100%" height={230}>
                   <PieChart>
-                    <Pie data={expenseByCategory} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3}>
+                    <Pie data={expenseByCategory} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={52} outerRadius={82} paddingAngle={3}>
                       {expenseByCategory.map((_, i) => <Cell key={i} stroke="transparent" fill={COLORS[i % COLORS.length]} />)}
                     </Pie>
                     <Tooltip formatter={(v: number) => formatCurrency(v, 'AZN')} />
@@ -201,6 +217,16 @@ export default function ReportsPage() {
                 </ResponsiveContainer>
               )}
             </ChartCard>
+            <Card className="rounded-card">
+              <CardHeader><CardTitle className="text-base">Rentabellik</CardTitle></CardHeader>
+              <CardContent className="space-y-2.5 pt-1">
+                <Ratio label="Ümumi marja" value={`${ifrs?.kpis.grossMargin.toFixed(1) ?? 0}%`} pct={ifrs?.kpis.grossMargin ?? 0} />
+                <Ratio label="Xalis marja" value={`${ifrs?.kpis.netMargin.toFixed(1) ?? 0}%`} pct={ifrs?.kpis.netMargin ?? 0} />
+                <div className="flex justify-between border-t pt-2 text-sm"><span className="text-muted-foreground">Vergidən əvvəlki mənfəət</span><span className="font-semibold tabular-nums">{formatCurrency(ifrs?.kpis.profitBeforeTax ?? 0, 'AZN')}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-muted-foreground">Mənfəət vergisi</span><span className="font-semibold tabular-nums text-rose-500">−{formatCurrency(ifrs?.kpis.incomeTax ?? 0, 'AZN')}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-muted-foreground">Cəmi kapital</span><span className="font-semibold tabular-nums">{formatCurrency(ifrs?.kpis.totalEquity ?? 0, 'AZN')}</span></div>
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
 
@@ -312,8 +338,16 @@ export default function ReportsPage() {
   );
 }
 
-function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
-  return <div className={`flex justify-between ${bold ? 'border-t pt-1 font-bold' : 'text-muted-foreground'}`}><span>{label}</span><span>{value}</span></div>;
+function Ratio({ label, value, pct }: { label: string; value: string; pct: number }) {
+  const w = Math.max(0, Math.min(100, pct));
+  return (
+    <div>
+      <div className="mb-1 flex justify-between text-sm"><span className="text-muted-foreground">{label}</span><span className="font-semibold tabular-nums">{value}</span></div>
+      <div className="h-2 overflow-hidden rounded-full bg-secondary">
+        <div className="h-full rounded-full bg-gradient-to-r from-[#5B5BF5] to-[#8b3df0]" style={{ width: `${w}%` }} />
+      </div>
+    </div>
+  );
 }
 function Kpi({ label, value }: { label: string; value: string }) {
   return <Card className="rounded-card"><CardContent className="p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="text-xl font-bold">{value}</p></CardContent></Card>;

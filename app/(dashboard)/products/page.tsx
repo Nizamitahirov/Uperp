@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { orderBy } from 'firebase/firestore';
-import { Pencil, Plus, Search, Trash2, Shirt } from 'lucide-react';
+import { Pencil, Plus, Trash2, Shirt } from 'lucide-react';
 import { listDocs, createDoc, updateDocById, deleteDocById } from '@/lib/firebase/firestore';
 import { nextNumber } from '@/lib/firebase/counters';
 import { logAudit } from '@/lib/firebase/audit';
@@ -15,9 +15,9 @@ import { formatCurrency } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
 import { ExportButton } from '@/components/shared/export-button';
 import { EmptyState } from '@/components/shared/empty-state';
+import { FilterBar, ALL } from '@/components/shared/filter-bar';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -53,6 +53,9 @@ export default function ProductsPage() {
   const qc = useQueryClient();
   const { profile, can } = useAuth();
   const [search, setSearch] = useState('');
+  const [category, setCategory] = useState(ALL);
+  const [fit, setFit] = useState(ALL);
+  const [status, setStatus] = useState(ALL);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -70,11 +73,14 @@ export default function ProductsPage() {
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
-    if (!s) return products;
-    return products.filter(
-      (p) => p.modelCode?.toLowerCase().includes(s) || p.name?.az?.toLowerCase().includes(s) || p.sku?.toLowerCase().includes(s),
-    );
-  }, [products, search]);
+    return products.filter((p) => {
+      if (category !== ALL && p.category !== category) return false;
+      if (fit !== ALL && p.fit !== fit) return false;
+      if (status !== ALL && p.status !== status) return false;
+      if (s && !(p.modelCode?.toLowerCase().includes(s) || p.name?.az?.toLowerCase().includes(s) || p.sku?.toLowerCase().includes(s))) return false;
+      return true;
+    });
+  }, [products, search, category, fit, status]);
 
   const actor = { userId: profile?.uid ?? '', username: profile?.username ?? '' };
 
@@ -146,16 +152,22 @@ export default function ProductsPage() {
         }
       />
 
-      <div className="mb-4 relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input className="pl-9" placeholder="SKU, model kodu və ya ad..." value={search} onChange={(e) => setSearch(e.target.value)} />
-      </div>
+      <FilterBar
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="SKU, model kodu və ya ad..."
+        filters={[
+          { key: 'category', placeholder: 'Kateqoriya', value: category, onChange: setCategory, allLabel: 'Bütün kateqoriyalar', options: PRODUCT_CATEGORIES.map((c) => ({ value: c.value, label: c.label })) },
+          { key: 'fit', placeholder: 'Fit', value: fit, onChange: setFit, allLabel: 'Bütün fitlər', options: Object.entries(PRODUCT_FITS).map(([v, l]) => ({ value: v, label: l })) },
+          { key: 'status', placeholder: 'Status', value: status, onChange: setStatus, allLabel: 'Bütün statuslar', options: [{ value: 'active', label: 'Aktiv' }, { value: 'draft', label: 'Qaralama' }, { value: 'archived', label: 'Arxiv' }] },
+        ]}
+      />
 
       <Card className="rounded-card">
         {isLoading ? (
           <div className="space-y-2 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
         ) : filtered.length === 0 ? (
-          <EmptyState title="Məhsul tapılmadı" description={search ? 'Nəticə yoxdur' : 'Hələ məhsul əlavə edilməyib'} action={canCreate && !search ? <Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus /> Yeni məhsul</Button> : undefined} />
+          <EmptyState title="Məhsul tapılmadı" description={products.length ? 'Filtrə uyğun nəticə yoxdur' : 'Hələ məhsul əlavə edilməyib'} action={canCreate && !products.length ? <Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus /> Yeni məhsul</Button> : undefined} />
         ) : (
           <Table>
             <TableHeader>

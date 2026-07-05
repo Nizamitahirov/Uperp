@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { listDocs, createDoc, updateDocById, deleteDocById } from '@/lib/firebase/firestore';
 import { logAudit } from '@/lib/firebase/audit';
 import { useAuth } from '@/components/providers/auth-provider';
@@ -13,9 +13,9 @@ import { formatCurrency } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
 import { ExportButton } from '@/components/shared/export-button';
 import { EmptyState } from '@/components/shared/empty-state';
+import { FilterBar, ALL } from '@/components/shared/filter-bar';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -29,6 +29,8 @@ export default function SuppliersPage() {
   const qc = useQueryClient();
   const { profile, can } = useAuth();
   const [search, setSearch] = useState('');
+  const [active, setActive] = useState(ALL);
+  const [country, setCountry] = useState(ALL);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Supplier | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -44,16 +46,20 @@ export default function SuppliersPage() {
     queryFn: () => listDocs<Supplier>(COLLECTION),
   });
 
+  const countryOptions = useMemo(
+    () => Array.from(new Set(suppliers.map((s) => s.country).filter(Boolean))).map((c) => ({ value: c as string, label: c as string })),
+    [suppliers],
+  );
+
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
-    if (!s) return suppliers;
-    return suppliers.filter(
-      (x) =>
-        x.code?.toLowerCase().includes(s) ||
-        x.name?.toLowerCase().includes(s) ||
-        x.contactPerson?.toLowerCase().includes(s),
-    );
-  }, [suppliers, search]);
+    return suppliers.filter((x) => {
+      if (active !== ALL && String(x.isActive) !== active) return false;
+      if (country !== ALL && x.country !== country) return false;
+      if (s && !(x.code?.toLowerCase().includes(s) || x.name?.toLowerCase().includes(s) || x.contactPerson?.toLowerCase().includes(s))) return false;
+      return true;
+    });
+  }, [suppliers, search, active, country]);
 
   function openCreate() {
     setEditing(null);
@@ -125,31 +131,29 @@ export default function SuppliersPage() {
       <PageHeader
         title="Təchizatçılar"
         subtitle="Təchizatçı kontragentləri"
-        action={
-          <div className="flex gap-2">
-            <ExportButton filename="techizatcilar" rows={filtered} columns={[
-              { header: 'Kod', value: 'code' },
-              { header: 'Ad', value: 'name' },
-              { header: 'Əlaqə', value: (s) => s.contactPerson ?? '' },
-              { header: 'Telefon', value: (s) => s.phone ?? '' },
-              { header: 'Email', value: (s) => s.email ?? '' },
-              { header: 'VÖEN', value: (s) => s.taxNumber ?? '' },
-              { header: 'Reytinq', value: (s) => s.rating ?? '' },
-            ]} />
-            {canCreate && <Button onClick={openCreate}><Plus /> Yeni təchizatçı</Button>}
-          </div>
-        }
+        action={canCreate ? <Button onClick={openCreate}><Plus /> Yeni təchizatçı</Button> : undefined}
       />
 
-      <div className="mb-4 relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          className="pl-9"
-          placeholder="Kod, ad və ya əlaqədar şəxs..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
+      <FilterBar
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Kod, ad və ya əlaqədar şəxs..."
+        filters={[
+          { key: 'active', placeholder: 'Status', value: active, onChange: setActive, allLabel: 'Bütün statuslar', options: [{ value: 'true', label: 'Aktiv' }, { value: 'false', label: 'Deaktiv' }] },
+          ...(countryOptions.length ? [{ key: 'country', placeholder: 'Ölkə', value: country, onChange: setCountry, allLabel: 'Bütün ölkələr', options: countryOptions }] : []),
+        ]}
+        right={
+          <ExportButton filename="techizatcilar" rows={filtered} columns={[
+            { header: 'Kod', value: 'code' },
+            { header: 'Ad', value: 'name' },
+            { header: 'Əlaqə', value: (s) => s.contactPerson ?? '' },
+            { header: 'Telefon', value: (s) => s.phone ?? '' },
+            { header: 'Email', value: (s) => s.email ?? '' },
+            { header: 'VÖEN', value: (s) => s.taxNumber ?? '' },
+            { header: 'Reytinq', value: (s) => s.rating ?? '' },
+          ]} />
+        }
+      />
 
       <Card className="rounded-card">
         {isLoading ? (
@@ -161,8 +165,8 @@ export default function SuppliersPage() {
         ) : filtered.length === 0 ? (
           <EmptyState
             title="Təchizatçı tapılmadı"
-            description={search ? 'Axtarışa uyğun nəticə yoxdur' : 'Hələ təchizatçı əlavə edilməyib'}
-            action={canCreate && !search ? <Button onClick={openCreate}><Plus /> Yeni təchizatçı</Button> : undefined}
+            description={suppliers.length ? 'Filtrə uyğun nəticə yoxdur' : 'Hələ təchizatçı əlavə edilməyib'}
+            action={canCreate && !suppliers.length ? <Button onClick={openCreate}><Plus /> Yeni təchizatçı</Button> : undefined}
           />
         ) : (
           <Table>

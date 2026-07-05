@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { orderBy } from 'firebase/firestore';
-import { Handshake, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { Handshake, Pencil, Plus, Trash2 } from 'lucide-react';
 import { listDocs, createDoc, updateDocById, deleteDocById } from '@/lib/firebase/firestore';
 import { nextNumber } from '@/lib/firebase/counters';
 import { logAudit } from '@/lib/firebase/audit';
@@ -16,9 +16,9 @@ import { formatCurrency } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
 import { ExportButton } from '@/components/shared/export-button';
 import { EmptyState } from '@/components/shared/empty-state';
+import { FilterBar, ALL } from '@/components/shared/filter-bar';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -32,6 +32,9 @@ export default function CustomersPage() {
   const qc = useQueryClient();
   const { profile, can } = useAuth();
   const [search, setSearch] = useState('');
+  const [type, setType] = useState(ALL);
+  const [segment, setSegment] = useState(ALL);
+  const [status, setStatus] = useState(ALL);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Customer | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -49,9 +52,14 @@ export default function CustomersPage() {
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
-    if (!s) return customers;
-    return customers.filter((c) => c.name?.toLowerCase().includes(s) || c.code?.toLowerCase().includes(s) || c.companyName?.toLowerCase().includes(s));
-  }, [customers, search]);
+    return customers.filter((c) => {
+      if (type !== ALL && c.type !== type) return false;
+      if (segment !== ALL && c.segment !== segment) return false;
+      if (status !== ALL && c.status !== status) return false;
+      if (s && !(c.name?.toLowerCase().includes(s) || c.code?.toLowerCase().includes(s) || c.companyName?.toLowerCase().includes(s))) return false;
+      return true;
+    });
+  }, [customers, search, type, segment, status]);
 
   const actor = { userId: profile?.uid ?? '', username: profile?.username ?? '' };
 
@@ -122,15 +130,21 @@ export default function CustomersPage() {
           </div>
         }
       />
-      <div className="mb-4 relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input className="pl-9" placeholder="Ad, kod və ya şirkət..." value={search} onChange={(e) => setSearch(e.target.value)} />
-      </div>
+      <FilterBar
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Ad, kod və ya şirkət..."
+        filters={[
+          { key: 'type', placeholder: 'Növ', value: type, onChange: setType, allLabel: 'Bütün növlər', options: Object.entries(CUSTOMER_TYPES).map(([v, l]) => ({ value: v, label: l })) },
+          { key: 'segment', placeholder: 'Seqment', value: segment, onChange: setSegment, allLabel: 'Bütün seqmentlər', options: Object.entries(CUSTOMER_SEGMENTS).map(([v, m]) => ({ value: v, label: m.label })) },
+          { key: 'status', placeholder: 'Status', value: status, onChange: setStatus, allLabel: 'Bütün statuslar', options: [{ value: 'active', label: 'Aktiv' }, { value: 'inactive', label: 'Passiv' }, { value: 'blacklist', label: 'Qara siyahı' }] },
+        ]}
+      />
       <Card className="rounded-card">
         {isLoading ? (
           <div className="space-y-2 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
         ) : filtered.length === 0 ? (
-          <EmptyState title="Müştəri tapılmadı" description={search ? 'Nəticə yoxdur' : 'Hələ müştəri yoxdur'} action={canCreate && !search ? <Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus /> Yeni müştəri</Button> : undefined} />
+          <EmptyState title="Müştəri tapılmadı" description={customers.length ? 'Filtrə uyğun nəticə yoxdur' : 'Hələ müştəri yoxdur'} action={canCreate && !customers.length ? <Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus /> Yeni müştəri</Button> : undefined} />
         ) : (
           <Table>
             <TableHeader>

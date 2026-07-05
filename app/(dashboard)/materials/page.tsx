@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { listDocs, createDoc, updateDocById, deleteDocById } from '@/lib/firebase/firestore';
 import { logAudit } from '@/lib/firebase/audit';
 import { useAuth } from '@/components/providers/auth-provider';
@@ -15,9 +15,9 @@ import { formatCurrency, formatNumber } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
 import { ExportButton } from '@/components/shared/export-button';
 import { EmptyState } from '@/components/shared/empty-state';
+import { FilterBar, ALL } from '@/components/shared/filter-bar';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -30,6 +30,8 @@ export default function MaterialsPage() {
   const qc = useQueryClient();
   const { profile, can } = useAuth();
   const [search, setSearch] = useState('');
+  const [category, setCategory] = useState(ALL);
+  const [stock, setStock] = useState(ALL);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<RawMaterial | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -47,11 +49,13 @@ export default function MaterialsPage() {
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
-    if (!s) return materials;
-    return materials.filter(
-      (m) => m.code?.toLowerCase().includes(s) || m.name?.toLowerCase().includes(s),
-    );
-  }, [materials, search]);
+    return materials.filter((m) => {
+      if (category !== ALL && m.category !== category) return false;
+      if (stock !== ALL && getStockStatus(m) !== stock) return false;
+      if (s && !(m.code?.toLowerCase().includes(s) || m.name?.toLowerCase().includes(s))) return false;
+      return true;
+    });
+  }, [materials, search, category, stock]);
 
   function openCreate() {
     setEditing(null);
@@ -125,37 +129,35 @@ export default function MaterialsPage() {
       <PageHeader
         title="Xam Material Anbarı"
         subtitle="Material kataloqu, stok və maya dəyəri"
-        action={
-          <div className="flex gap-2">
-            <ExportButton
-              filename="xam-material"
-              rows={filtered}
-              columns={[
-                { header: 'Kod', value: 'code' },
-                { header: 'Ad', value: 'name' },
-                { header: 'Kateqoriya', value: 'category' },
-                { header: 'Vahid', value: 'unit' },
-                { header: 'Cari stok', value: 'currentStock' },
-                { header: 'Min stok', value: 'minStock' },
-                { header: 'Reorder', value: (m) => m.reorderPoint ?? '' },
-                { header: 'Orta maya', value: (m) => m.avgCost ?? '' },
-                { header: 'Stok dəyəri', value: (m) => m.stockValue ?? '' },
-              ]}
-            />
-            {canCreate && <Button onClick={openCreate}><Plus /> Yeni material</Button>}
-          </div>
-        }
+        action={canCreate ? <Button onClick={openCreate}><Plus /> Yeni material</Button> : undefined}
       />
 
-      <div className="mb-4 relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          className="pl-9"
-          placeholder="Kod və ya ad üzrə axtar..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
+      <FilterBar
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Kod və ya ad üzrə axtar..."
+        filters={[
+          { key: 'category', placeholder: 'Kateqoriya', value: category, onChange: setCategory, allLabel: 'Bütün kateqoriyalar', options: Object.entries(MATERIAL_CATEGORY_LABELS).map(([v, l]) => ({ value: v, label: l })) },
+          { key: 'stock', placeholder: 'Stok statusu', value: stock, onChange: setStock, allLabel: 'Bütün statuslar', options: Object.entries(STOCK_STATUS_META).map(([v, m]) => ({ value: v, label: m.label })) },
+        ]}
+        right={
+          <ExportButton
+            filename="xam-material"
+            rows={filtered}
+            columns={[
+              { header: 'Kod', value: 'code' },
+              { header: 'Ad', value: 'name' },
+              { header: 'Kateqoriya', value: 'category' },
+              { header: 'Vahid', value: 'unit' },
+              { header: 'Cari stok', value: 'currentStock' },
+              { header: 'Min stok', value: 'minStock' },
+              { header: 'Reorder', value: (m) => m.reorderPoint ?? '' },
+              { header: 'Orta maya', value: (m) => m.avgCost ?? '' },
+              { header: 'Stok dəyəri', value: (m) => m.stockValue ?? '' },
+            ]}
+          />
+        }
+      />
 
       <Card className="rounded-card">
         {isLoading ? (
@@ -167,8 +169,8 @@ export default function MaterialsPage() {
         ) : filtered.length === 0 ? (
           <EmptyState
             title="Material tapılmadı"
-            description={search ? 'Axtarışa uyğun nəticə yoxdur' : 'Hələ material əlavə edilməyib'}
-            action={canCreate && !search ? <Button onClick={openCreate}><Plus /> Yeni material</Button> : undefined}
+            description={materials.length ? 'Filtrə uyğun nəticə yoxdur' : 'Hələ material əlavə edilməyib'}
+            action={canCreate && !materials.length ? <Button onClick={openCreate}><Plus /> Yeni material</Button> : undefined}
           />
         ) : (
           <Table>

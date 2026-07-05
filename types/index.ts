@@ -498,6 +498,30 @@ export interface ProductionOrder {
   updatedAt?: Timestamp | null;
 }
 
+// ── Shop-floor əməliyyatları (istehsal mərhələləri) ─────────
+export type OperationStage = 'cutting' | 'sewing' | 'washing' | 'ironing' | 'qc' | 'packing';
+export type OperationStatus = 'pending' | 'in_progress' | 'done';
+
+export interface ProductionOperation {
+  stage: OperationStage;
+  status: OperationStatus;
+  targetQty: number;
+  completedQty: number;
+  operator?: string;
+  note?: string;
+  startedAt?: Timestamp | null;
+  completedAt?: Timestamp | null;
+}
+
+export interface ProductionOperations {
+  id: string; // = productionOrderId
+  orderId: string;
+  orderNumber?: string;
+  totalQuantity: number;
+  operations: ProductionOperation[];
+  updatedAt?: Timestamp | null;
+}
+
 // ── Yuyulma (06 §6.4) ───────────────────────────────────────
 export type WashingStatus = 'sent' | 'in_process' | 'returned' | 'closed';
 

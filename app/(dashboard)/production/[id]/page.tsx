@@ -21,6 +21,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { toast } from '@/components/ui/toast';
 import { CompleteDialog } from '../complete-dialog';
 import { WashingSendDialog, WashingReturnDialog } from '../washing-dialogs';
+import { OperationsPanel } from './operations-panel';
 
 export default function ProductionDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -123,6 +124,10 @@ export default function ProductionDetailPage() {
         <Kpi label="Faktiki material" value={formatCurrency(order.actualMaterialCost, 'AZN')} />
         <Kpi label="Yuyulma xərci" value={formatCurrency(order.washingCost, 'AZN')} />
         <Kpi label="Faktiki cəm" value={formatCurrency(order.totalActualCost, 'AZN')} />
+      </div>
+
+      <div className="mb-4">
+        <OperationsPanel order={order} canRun={canRun} actor={actor} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

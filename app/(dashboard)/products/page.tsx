@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { orderBy } from 'firebase/firestore';
-import { Pencil, Plus, Trash2, Shirt } from 'lucide-react';
+import { Pencil, Plus, Trash2, Shirt, QrCode, FileUp } from 'lucide-react';
 import { listDocs, createDoc, updateDocById, deleteDocById } from '@/lib/firebase/firestore';
 import { nextNumber } from '@/lib/firebase/counters';
 import { logAudit } from '@/lib/firebase/audit';
@@ -12,8 +12,10 @@ import type { Product } from '@/types';
 import type { ProductFormValues } from '@/lib/validations';
 import { PRODUCT_CATEGORIES, PRODUCT_FITS } from '@/lib/constants';
 import { formatCurrency } from '@/lib/utils/format';
+import { printLabels } from '@/lib/utils/labels';
 import { PageHeader } from '@/components/shared/page-header';
 import { ExportButton } from '@/components/shared/export-button';
+import { ImportDialog, type ImportResult } from '@/components/shared/import-dialog';
 import { EmptyState } from '@/components/shared/empty-state';
 import { FilterBar, ALL } from '@/components/shared/filter-bar';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
@@ -57,6 +59,7 @@ export default function ProductsPage() {
   const [fit, setFit] = useState(ALL);
   const [status, setStatus] = useState(ALL);
   const [formOpen, setFormOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
@@ -108,6 +111,29 @@ export default function ProductsPage() {
     }
   }
 
+  async function importProducts(rows: Record<string, string>[]): Promise<ImportResult> {
+    let created = 0, failed = 0;
+    const errors: string[] = [];
+    for (const [i, r] of rows.entries()) {
+      try {
+        const nameAz = r['Ad (AZ)'] || r['Ad'] || r['name'] || '';
+        const modelCode = r['Model kodu'] || r['modelCode'] || '';
+        if (!nameAz || !modelCode) { failed++; errors.push(`Sətir ${i + 2}: ad və ya model kodu boşdur`); continue; }
+        const catRaw = (r['Kateqoriya'] || '').toLowerCase();
+        const category = ['men', 'women', 'kids'].includes(catRaw) ? catRaw : catRaw.includes('qad') ? 'women' : (catRaw.includes('uşaq') || catRaw.includes('usaq')) ? 'kids' : 'men';
+        const sku = await nextNumber('PRD');
+        await createDoc(COLLECTION, {
+          sku, modelCode, name: { az: nameAz, en: r['Ad (EN)'] || '' }, category,
+          fit: r['Fit'] || null, wholesalePrice: +(r['Topdan qiymət'] || r['Topdan'] || 0) || 0,
+          retailPrice: +(r['Pərakəndə qiymət'] || r['Pərakəndə'] || 0) || 0, cost: 0,
+          status: r['Status'] || 'active', sizes: [], images: [],
+        });
+        created++;
+      } catch (e) { failed++; errors.push(`Sətir ${i + 2}: ${e instanceof Error ? e.message : 'xəta'}`); }
+    }
+    return { created, failed, errors };
+  }
+
   async function handleDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -147,6 +173,8 @@ export default function ProductsPage() {
                 { header: 'Status', value: 'status' },
               ]}
             />
+            <Button variant="outline" onClick={() => printLabels(filtered.map((p) => ({ code: p.sku || p.modelCode || p.id, name: p.name?.az ?? '', sub: formatCurrency(p.wholesalePrice, 'AZN') })))} disabled={filtered.length === 0}><QrCode className="h-4 w-4" /> Etiketlər</Button>
+            {canCreate && <Button variant="outline" onClick={() => setImportOpen(true)}><FileUp className="h-4 w-4" /> İmport</Button>}
             {canCreate && <Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus /> Yeni məhsul</Button>}
           </div>
         }
@@ -229,6 +257,16 @@ export default function ProductsPage() {
         )}
       </Card>
 
+      <ImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Məhsul import (Excel)"
+        headers={['Model kodu', 'Ad (AZ)', 'Ad (EN)', 'Kateqoriya', 'Fit', 'Topdan qiymət', 'Pərakəndə qiymət', 'Status']}
+        required={['Model kodu', 'Ad (AZ)']}
+        templateName="mehsul-import"
+        onImport={importProducts}
+        onDone={() => qc.invalidateQueries({ queryKey: [COLLECTION] })}
+      />
       <ProductFormDialog open={formOpen} onOpenChange={setFormOpen} initial={editing} onSubmit={handleSubmit} submitting={submitting} />
       <ConfirmDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)} title="Məhsulu sil" description={`"${deleteTarget?.name?.az}" silinsin?`} onConfirm={handleDelete} loading={deleting} />
     </div>

@@ -3,8 +3,9 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2, QrCode, FileUp } from 'lucide-react';
 import { listDocs, createDoc, updateDocById, deleteDocById } from '@/lib/firebase/firestore';
+import { nextNumber } from '@/lib/firebase/counters';
 import { logAudit } from '@/lib/firebase/audit';
 import { useAuth } from '@/components/providers/auth-provider';
 import type { RawMaterial } from '@/types';
@@ -12,8 +13,10 @@ import type { RawMaterialFormValues } from '@/lib/validations';
 import { MATERIAL_CATEGORY_LABELS } from '@/lib/constants';
 import { getStockStatus, STOCK_STATUS_META } from '@/lib/utils/stock';
 import { formatCurrency, formatNumber } from '@/lib/utils/format';
+import { printLabels } from '@/lib/utils/labels';
 import { PageHeader } from '@/components/shared/page-header';
 import { ExportButton } from '@/components/shared/export-button';
+import { ImportDialog, type ImportResult } from '@/components/shared/import-dialog';
 import { EmptyState } from '@/components/shared/empty-state';
 import { FilterBar, ALL } from '@/components/shared/filter-bar';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
@@ -33,6 +36,7 @@ export default function MaterialsPage() {
   const [category, setCategory] = useState(ALL);
   const [stock, setStock] = useState(ALL);
   const [formOpen, setFormOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<RawMaterial | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<RawMaterial | null>(null);
@@ -102,6 +106,28 @@ export default function MaterialsPage() {
     }
   }
 
+  async function importMaterials(rows: Record<string, string>[]): Promise<ImportResult> {
+    let created = 0, failed = 0;
+    const errors: string[] = [];
+    for (const [i, r] of rows.entries()) {
+      try {
+        const name = r['Ad'] || r['name'] || '';
+        if (!name) { failed++; errors.push(`Sətir ${i + 2}: ad boşdur`); continue; }
+        const code = r['Kod'] || r['code'] || (await nextNumber('MAT'));
+        const currentStock = +(r['Cari stok'] || 0) || 0;
+        const avgCost = +(r['Orta maya'] || 0) || 0;
+        await createDoc(COLLECTION, {
+          code, name, category: r['Kateqoriya'] || 'other', unit: r['Vahid'] || 'ədəd', currency: 'AZN',
+          currentStock, minStock: +(r['Min stok'] || 0) || 0, reorderPoint: +(r['Reorder'] || 0) || 0, maxStock: +(r['Maks stok'] || 0) || 0,
+          avgCost, lastPurchasePrice: avgCost, costingMethod: (r['Maya metodu'] || 'FIFO').toUpperCase() === 'AVCO' ? 'AVCO' : 'FIFO',
+          stockValue: +(currentStock * avgCost).toFixed(2), isActive: true,
+        });
+        created++;
+      } catch (e) { failed++; errors.push(`Sətir ${i + 2}: ${e instanceof Error ? e.message : 'xəta'}`); }
+    }
+    return { created, failed, errors };
+  }
+
   async function handleDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -129,7 +155,13 @@ export default function MaterialsPage() {
       <PageHeader
         title="Xam Material Anbarı"
         subtitle="Material kataloqu, stok və maya dəyəri"
-        action={canCreate ? <Button onClick={openCreate}><Plus /> Yeni material</Button> : undefined}
+        action={
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => printLabels(filtered.map((m) => ({ code: m.code || m.id, name: m.name, sub: `${formatNumber(m.currentStock ?? 0)} ${m.unit}` })))} disabled={filtered.length === 0}><QrCode className="h-4 w-4" /> Etiketlər</Button>
+            {canCreate && <Button variant="outline" onClick={() => setImportOpen(true)}><FileUp className="h-4 w-4" /> İmport</Button>}
+            {canCreate && <Button onClick={openCreate}><Plus /> Yeni material</Button>}
+          </div>
+        }
       />
 
       <FilterBar
@@ -243,6 +275,16 @@ export default function MaterialsPage() {
         )}
       </Card>
 
+      <ImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Material import (Excel)"
+        headers={['Kod', 'Ad', 'Kateqoriya', 'Vahid', 'Cari stok', 'Min stok', 'Reorder', 'Maks stok', 'Orta maya', 'Maya metodu']}
+        required={['Ad']}
+        templateName="material-import"
+        onImport={importMaterials}
+        onDone={() => qc.invalidateQueries({ queryKey: [COLLECTION] })}
+      />
       <MaterialFormDialog
         open={formOpen}
         onOpenChange={setFormOpen}

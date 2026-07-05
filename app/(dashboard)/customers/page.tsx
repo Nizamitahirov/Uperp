@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { orderBy } from 'firebase/firestore';
-import { Handshake, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Handshake, Pencil, Plus, Trash2, FileUp } from 'lucide-react';
 import { listDocs, createDoc, updateDocById, deleteDocById } from '@/lib/firebase/firestore';
 import { nextNumber } from '@/lib/firebase/counters';
 import { logAudit } from '@/lib/firebase/audit';
@@ -15,6 +15,7 @@ import { CUSTOMER_SEGMENTS, CUSTOMER_TYPES } from '@/lib/constants';
 import { formatCurrency } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
 import { ExportButton } from '@/components/shared/export-button';
+import { ImportDialog, type ImportResult } from '@/components/shared/import-dialog';
 import { EmptyState } from '@/components/shared/empty-state';
 import { FilterBar, ALL } from '@/components/shared/filter-bar';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
@@ -36,6 +37,7 @@ export default function CustomersPage() {
   const [segment, setSegment] = useState(ALL);
   const [status, setStatus] = useState(ALL);
   const [formOpen, setFormOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<Customer | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
@@ -86,6 +88,29 @@ export default function CustomersPage() {
     }
   }
 
+  async function importCustomers(rows: Record<string, string>[]): Promise<ImportResult> {
+    let created = 0, failed = 0;
+    const errors: string[] = [];
+    for (const [i, r] of rows.entries()) {
+      try {
+        const name = r['Ad'] || r['name'] || '';
+        if (!name) { failed++; errors.push(`Sətir ${i + 2}: ad boşdur`); continue; }
+        const typeRaw = (r['Növ'] || '').toLowerCase();
+        const type = ['wholesale', 'retail', 'distributor'].includes(typeRaw) ? typeRaw : typeRaw.includes('pərak') || typeRaw.includes('perak') ? 'retail' : typeRaw.includes('distrib') ? 'distributor' : 'wholesale';
+        const code = await nextNumber('CUS');
+        await createDoc(COLLECTION, {
+          code, name, companyName: r['Şirkət'] || null, taxNumber: r['VÖEN'] || null,
+          phone: r['Telefon'] || null, email: r['Email'] || null, address: r['Ünvan'] || null,
+          type, segment: r['Seqment'] || 'regular', creditLimit: +(r['Kredit limiti'] || 0) || 0,
+          paymentTermDays: +(r['Ödəniş günü'] || 0) || 0, discountRate: +(r['Endirim %'] || 0) || 0,
+          currentBalance: 0, status: 'active',
+        });
+        created++;
+      } catch (e) { failed++; errors.push(`Sətir ${i + 2}: ${e instanceof Error ? e.message : 'xəta'}`); }
+    }
+    return { created, failed, errors };
+  }
+
   async function handleDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -126,6 +151,7 @@ export default function CustomersPage() {
               ]}
             />
             <Button variant="outline" asChild><Link href="/crm"><Handshake className="h-4 w-4" /> CRM / Pipeline</Link></Button>
+            {canCreate && <Button variant="outline" onClick={() => setImportOpen(true)}><FileUp className="h-4 w-4" /> İmport</Button>}
             {canCreate && <Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus /> Yeni müştəri</Button>}
           </div>
         }
@@ -189,6 +215,16 @@ export default function CustomersPage() {
           </Table>
         )}
       </Card>
+      <ImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Müştəri import (Excel)"
+        headers={['Ad', 'Şirkət', 'VÖEN', 'Telefon', 'Email', 'Ünvan', 'Növ', 'Seqment', 'Kredit limiti', 'Ödəniş günü', 'Endirim %']}
+        required={['Ad']}
+        templateName="musteri-import"
+        onImport={importCustomers}
+        onDone={() => qc.invalidateQueries({ queryKey: [COLLECTION] })}
+      />
       <CustomerFormDialog open={formOpen} onOpenChange={setFormOpen} initial={editing} onSubmit={handleSubmit} submitting={submitting} />
       <ConfirmDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)} title="Müştərini sil" description={`"${deleteTarget?.name}" silinsin?`} onConfirm={handleDelete} loading={deleting} />
     </div>

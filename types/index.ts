@@ -498,6 +498,35 @@ export interface ProductionOrder {
   updatedAt?: Timestamp | null;
 }
 
+// ── Anbarlar + anbarlararası transfer ───────────────────────
+export interface Warehouse {
+  id: string;
+  code: string;
+  name: string;
+  type: 'raw' | 'finished' | 'general';
+  address?: string;
+  isActive: boolean;
+  createdAt?: Timestamp | null;
+}
+
+export interface StockTransfer {
+  id: string;
+  number: string;
+  fromWarehouseId: string;
+  fromWarehouseName?: string;
+  toWarehouseId: string;
+  toWarehouseName?: string;
+  materialId: string;
+  materialName?: string;
+  unit?: string;
+  quantity: number;
+  note?: string;
+  status: 'completed';
+  createdBy: string;
+  createdByName?: string;
+  createdAt?: Timestamp | null;
+}
+
 // ── Shop-floor əməliyyatları (istehsal mərhələləri) ─────────
 export type OperationStage = 'cutting' | 'sewing' | 'washing' | 'ironing' | 'qc' | 'packing';
 export type OperationStatus = 'pending' | 'in_progress' | 'done';

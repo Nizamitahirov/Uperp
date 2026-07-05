@@ -2,6 +2,7 @@ import {
   LayoutDashboard,
   Package,
   ClipboardCheck,
+  Warehouse,
   Layers,
   Truck,
   Users2,
@@ -51,6 +52,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/materials', labelKey: 'raw_materials', icon: Package, module: 'raw_materials' },
       { href: '/stocktake', labelKey: 'stocktake', icon: ClipboardCheck, module: 'raw_materials' },
+      { href: '/warehouses', labelKey: 'warehouses', icon: Warehouse, module: 'raw_materials' },
       { href: '/suppliers', labelKey: 'suppliers', icon: Truck, module: 'suppliers' },
       { href: '/procurement', labelKey: 'procurement', icon: ShoppingCart, module: 'purchase_orders' },
       { href: '/planning', labelKey: 'planning', icon: CalendarRange, module: 'reports' },

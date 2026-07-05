@@ -837,7 +837,9 @@ export interface SalesReturn {
   id: string;
   returnNumber: string;
   originalSaleId: string;
+  soNumber?: string;
   customerId?: string;
+  customerName?: string;
   items: { variantSku: string; finishedGoodId?: string; quantity: number; reason: string }[];
   reason: 'defective' | 'wrong_size' | 'customer_request' | 'other';
   returnType: 'refund' | 'exchange' | 'store_credit';

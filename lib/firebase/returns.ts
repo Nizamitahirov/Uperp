@@ -37,7 +37,9 @@ export async function createSalesReturn(
   const ref = await addDoc(collection(db, 'sales_returns'), {
     returnNumber,
     originalSaleId: order.id,
+    soNumber: order.soNumber ?? null,
     customerId: order.customerId,
+    customerName: order.customerName ?? null,
     items: order.items.map((i) => ({ variantSku: i.variantSku, finishedGoodId: i.finishedGoodId, quantity: i.quantity, reason: params.reason })),
     reason: params.reason,
     returnType: params.returnType,
@@ -50,4 +52,10 @@ export async function createSalesReturn(
   await updateDoc(doc(db, 'sales_orders', order.id), { status: 'returned', updatedAt: serverTimestamp() });
   await logAudit({ userId: actor.uid, username: actor.username, action: 'UPDATE', entityType: 'SalesReturn', entityId: ref.id });
   return ref.id;
+}
+
+/** RMA statusunu dəyişir (pending → approved → completed) */
+export async function setReturnStatus(id: string, status: SalesReturn['status'], actor: Actor): Promise<void> {
+  await updateDoc(doc(getDb(), 'sales_returns', id), { status, updatedAt: serverTimestamp() });
+  await logAudit({ userId: actor.uid, username: actor.username, action: 'UPDATE', entityType: 'SalesReturn', entityId: id });
 }

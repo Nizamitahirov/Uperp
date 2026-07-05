@@ -137,6 +137,32 @@ export interface StockMovement {
   createdAt?: Timestamp | null;
 }
 
+/** İnventarizasiya (fiziki sayım) — 02 §2.6 */
+export interface StocktakeLine {
+  materialId: string;
+  materialName: string;
+  code?: string;
+  unit: string;
+  expectedQty: number;
+  countedQty: number | null;
+  unitCost: number;
+}
+
+export interface Stocktake {
+  id: string;
+  number: string;
+  status: 'completed' | 'cancelled';
+  warehouseId?: string;
+  note?: string;
+  lines: StocktakeLine[];
+  countedLines: number;
+  varianceQtyAbs: number;
+  varianceValue: number;
+  createdBy: string;
+  createdByName?: string;
+  createdAt?: Timestamp | null;
+}
+
 /** raw_materials/{id}/cost_layers/{id} — FIFO təbəqəsi (02 §2.4.2) */
 export interface CostLayer {
   id: string;

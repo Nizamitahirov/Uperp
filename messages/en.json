@@ -37,6 +37,7 @@
   "nav": {
     "dashboard": "Dashboard",
     "raw_materials": "Raw materials",
+    "stocktake": "Stocktake",
     "bom": "BOM",
     "suppliers": "Suppliers",
     "customers": "Customers",

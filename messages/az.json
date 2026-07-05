@@ -37,6 +37,7 @@
   "nav": {
     "dashboard": "İdarə paneli",
     "raw_materials": "Xam material",
+    "stocktake": "İnventarizasiya",
     "bom": "BOM",
     "suppliers": "Təchizatçılar",
     "customers": "Müştərilər",

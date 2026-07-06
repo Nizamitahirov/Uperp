@@ -155,6 +155,7 @@ export interface Stocktake {
   id: string;
   number: string;
   status: 'completed' | 'cancelled';
+  scope?: 'raw' | 'finished';
   warehouseId?: string;
   note?: string;
   lines: StocktakeLine[];

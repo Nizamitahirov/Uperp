@@ -43,6 +43,19 @@ export async function fetchOperations(orderId: string): Promise<ProductionOperat
   return { id: snap.id, ...(snap.data() as Omit<ProductionOperations, 'id'>) };
 }
 
+/** İstehsal sifarişi tamamlananda bütün mərhələləri "bitdi" işarələyir */
+export async function completeAllOperations(orderId: string, actor: Actor): Promise<void> {
+  const current = await fetchOperations(orderId);
+  if (!current) return; // mərhələlər heç başladılmayıbsa toxunma
+  const operations = current.operations.map((op) =>
+    op.status === 'done'
+      ? op
+      : { ...op, status: 'done' as const, completedQty: op.completedQty || op.targetQty, completedAt: serverTimestamp() as unknown as ProductionOperation['completedAt'] },
+  );
+  await setDoc(doc(getDb(), 'production_operations', orderId), { operations, updatedAt: serverTimestamp() }, { merge: true });
+  await logAudit({ userId: actor.uid, username: actor.username, action: 'UPDATE', entityType: 'ProductionOrder', entityId: `ops:${current.orderNumber ?? orderId}` });
+}
+
 /** Bir mərhələni yeniləyir (status/say/operator/qeyd) */
 export async function updateOperation(
   current: ProductionOperations,

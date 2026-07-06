@@ -1,4 +1,4 @@
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { getDb } from './config';
 import { adjustInventory } from './stock';
 import { nextNumber } from './counters';
@@ -8,6 +8,25 @@ import type { StocktakeLine } from '@/types';
 interface Actor {
   uid: string;
   username: string;
+}
+
+/** Hazır məhsul variantının stokunu faktiki sayıma uyğunlaşdırır */
+export async function adjustFinishedGood(fgId: string, countedQty: number, reason: string, actor: Actor): Promise<void> {
+  const db = getDb();
+  const ref = doc(db, 'finished_goods', fgId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error('Hazır məhsul tapılmadı');
+    const d = snap.data() as { currentStock?: number; reservedStock?: number };
+    const reserved = d.reservedStock ?? 0;
+    tx.update(ref, {
+      currentStock: countedQty,
+      availableStock: Math.max(0, countedQty - reserved),
+      updatedAt: serverTimestamp(),
+      lastStocktakeNote: reason,
+    });
+  });
+  await logAudit({ userId: actor.uid, username: actor.username, action: 'STOCK_MOVE', entityType: 'FinishedGood', entityId: fgId });
 }
 
 export interface StocktakeResult {
@@ -24,11 +43,12 @@ export interface StocktakeResult {
  */
 export async function applyStocktake(
   lines: StocktakeLine[],
-  opts: { note?: string; warehouseId?: string },
+  opts: { note?: string; warehouseId?: string; scope?: 'raw' | 'finished' },
   actor: Actor,
 ): Promise<StocktakeResult> {
   const counted = lines.filter((l) => l.countedQty !== null && l.countedQty !== undefined);
   if (counted.length === 0) throw new Error('Ən azı bir material sayılmalıdır');
+  const scope = opts.scope ?? 'raw';
 
   let adjusted = 0;
   let varianceQtyAbs = 0;
@@ -37,7 +57,8 @@ export async function applyStocktake(
   for (const l of counted) {
     const delta = (l.countedQty as number) - l.expectedQty;
     if (Math.abs(delta) < 1e-9) continue;
-    await adjustInventory(l.materialId, l.countedQty as number, opts.note || 'İnventarizasiya düzəlişi', actor);
+    if (scope === 'finished') await adjustFinishedGood(l.materialId, l.countedQty as number, opts.note || 'İnventarizasiya düzəlişi', actor);
+    else await adjustInventory(l.materialId, l.countedQty as number, opts.note || 'İnventarizasiya düzəlişi', actor);
     adjusted += 1;
     varianceQtyAbs += Math.abs(delta);
     varianceValue += delta * (l.unitCost ?? 0);
@@ -47,6 +68,7 @@ export async function applyStocktake(
   const ref = await addDoc(collection(getDb(), 'stocktakes'), {
     number,
     status: 'completed',
+    scope,
     warehouseId: opts.warehouseId ?? 'main',
     note: opts.note ?? null,
     lines: counted.map((l) => ({ ...l })),

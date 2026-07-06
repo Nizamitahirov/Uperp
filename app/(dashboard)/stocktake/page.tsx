@@ -7,7 +7,7 @@ import { ClipboardCheck, Loader2, Save, History, PackageCheck } from 'lucide-rea
 import { listDocs } from '@/lib/firebase/firestore';
 import { applyStocktake } from '@/lib/firebase/stocktake';
 import { useAuth } from '@/components/providers/auth-provider';
-import type { RawMaterial, Stocktake, StocktakeLine } from '@/types';
+import type { FinishedGoodStock, RawMaterial, Stocktake, StocktakeLine } from '@/types';
 import { MATERIAL_CATEGORY_LABELS } from '@/lib/constants';
 import { formatCurrency, formatNumber, formatDate } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
@@ -22,10 +22,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils/cn';
 
+interface CountItem { id: string; name: string; code: string; unit: string; stock: number; unitCost: number; category?: string }
+
 export default function StocktakePage() {
   const qc = useQueryClient();
   const { profile, can } = useAuth();
-  const canPost = can('raw_materials', 'create');
+
+  const [scope, setScope] = useState<'raw' | 'finished'>('raw');
+  const canPost = can(scope === 'raw' ? 'raw_materials' : 'finished_goods', 'create');
 
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState(ALL);
@@ -33,58 +37,68 @@ export default function StocktakePage() {
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const { data: materials = [], isLoading } = useQuery({
+  const { data: materials = [], isLoading: loadingRaw } = useQuery({
     queryKey: ['raw_materials'],
     queryFn: () => listDocs<RawMaterial>('raw_materials'),
+  });
+  const { data: finished = [], isLoading: loadingFg } = useQuery({
+    queryKey: ['finished_goods'],
+    queryFn: () => listDocs<FinishedGoodStock>('finished_goods'),
   });
   const { data: history = [] } = useQuery({
     queryKey: ['stocktakes'],
     queryFn: () => listDocs<Stocktake>('stocktakes', [orderBy('createdAt', 'desc')]),
   });
 
+  const isLoading = scope === 'raw' ? loadingRaw : loadingFg;
+
+  const items: CountItem[] = useMemo(() => {
+    if (scope === 'raw') return materials.map((m) => ({ id: m.id, name: m.name, code: m.code, unit: m.unit, stock: m.currentStock ?? 0, unitCost: m.avgCost ?? 0, category: m.category }));
+    return finished.map((f) => ({ id: f.id, name: f.productName ?? '', code: f.variantSku, unit: 'ədəd', stock: f.currentStock ?? 0, unitCost: f.unitCost ?? 0 }));
+  }, [scope, materials, finished]);
+
+  function switchScope(s: 'raw' | 'finished') { setScope(s); setCounts({}); setCategory(ALL); }
+
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
-    return materials.filter((m) => {
-      if (category !== ALL && m.category !== category) return false;
-      if (s && !(m.code?.toLowerCase().includes(s) || m.name?.toLowerCase().includes(s))) return false;
+    return items.filter((it) => {
+      if (scope === 'raw' && category !== ALL && it.category !== category) return false;
+      if (s && !(it.code?.toLowerCase().includes(s) || it.name?.toLowerCase().includes(s))) return false;
       return true;
     });
-  }, [materials, search, category]);
+  }, [items, search, category, scope]);
 
   const summary = useMemo(() => {
     let countedLines = 0, varianceValue = 0, varianceQty = 0;
-    for (const m of materials) {
-      const raw = counts[m.id];
+    for (const it of items) {
+      const raw = counts[it.id];
       if (raw === undefined || raw === '') continue;
       const counted = Number(raw);
       if (Number.isNaN(counted)) continue;
       countedLines += 1;
-      const delta = counted - (m.currentStock ?? 0);
+      const delta = counted - it.stock;
       varianceQty += delta;
-      varianceValue += delta * (m.avgCost ?? 0);
+      varianceValue += delta * it.unitCost;
     }
     return { countedLines, varianceValue, varianceQty };
-  }, [counts, materials]);
+  }, [counts, items]);
 
   async function post() {
     const lines: StocktakeLine[] = [];
-    for (const m of materials) {
-      const raw = counts[m.id];
+    for (const it of items) {
+      const raw = counts[it.id];
       if (raw === undefined || raw === '') continue;
       const counted = Number(raw);
       if (Number.isNaN(counted)) continue;
-      lines.push({
-        materialId: m.id, materialName: m.name, code: m.code, unit: m.unit,
-        expectedQty: m.currentStock ?? 0, countedQty: counted, unitCost: m.avgCost ?? 0,
-      });
+      lines.push({ materialId: it.id, materialName: it.name, code: it.code, unit: it.unit, expectedQty: it.stock, countedQty: counted, unitCost: it.unitCost });
     }
-    if (lines.length === 0) { toast.error('Ən azı bir material sayın'); return; }
+    if (lines.length === 0) { toast.error('Ən azı bir sətir sayın'); return; }
     setSubmitting(true);
     try {
-      const res = await applyStocktake(lines, { note: note.trim() || undefined }, { uid: profile?.uid ?? '', username: profile?.username ?? '' });
-      toast.success(`İnventarizasiya tətbiq edildi (${res.number})`, `${res.adjusted} material düzəlişi`);
+      const res = await applyStocktake(lines, { note: note.trim() || undefined, scope }, { uid: profile?.uid ?? '', username: profile?.username ?? '' });
+      toast.success(`İnventarizasiya tətbiq edildi (${res.number})`, `${res.adjusted} sətir düzəlişi`);
       setCounts({}); setNote('');
-      qc.invalidateQueries({ queryKey: ['raw_materials'] });
+      qc.invalidateQueries({ queryKey: [scope === 'raw' ? 'raw_materials' : 'finished_goods'] });
       qc.invalidateQueries({ queryKey: ['stocktakes'] });
     } catch (e) {
       toast.error('Tətbiq alınmadı', e instanceof Error ? e.message : undefined);
@@ -104,6 +118,13 @@ export default function StocktakePage() {
         </TabsList>
 
         <TabsContent value="count">
+          {/* Sayım növü */}
+          <div className="mb-4 inline-flex rounded-xl border border-border bg-secondary/50 p-1">
+            {([['raw', 'Xam material'], ['finished', 'Hazır məhsul']] as const).map(([v, l]) => (
+              <button key={v} onClick={() => switchScope(v)} className={cn('rounded-lg px-4 py-1.5 text-sm font-medium transition-colors', scope === v ? 'bg-background text-primary shadow-soft' : 'text-muted-foreground hover:text-foreground')}>{l}</button>
+            ))}
+          </div>
+
           {/* Xülasə zolağı */}
           <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <SumCard label="Sayılmış sətir" value={String(summary.countedLines)} tint="bg-primary/10 text-primary" icon={PackageCheck} />
@@ -117,10 +138,10 @@ export default function StocktakePage() {
           <FilterBar
             search={search}
             onSearch={setSearch}
-            searchPlaceholder="Kod və ya ad üzrə axtar..."
-            filters={[
+            searchPlaceholder={scope === 'raw' ? 'Kod və ya ad üzrə axtar...' : 'SKU və ya məhsul üzrə axtar...'}
+            filters={scope === 'raw' ? [
               { key: 'category', placeholder: 'Kateqoriya', value: category, onChange: setCategory, allLabel: 'Bütün kateqoriyalar', options: Object.entries(MATERIAL_CATEGORY_LABELS).map(([v, l]) => ({ value: v, label: l })) },
-            ]}
+            ] : []}
             right={<Input className="h-9 w-full sm:w-64" placeholder="Qeyd (opsional)..." value={note} onChange={(e) => setNote(e.target.value)} />}
           />
 
@@ -128,14 +149,14 @@ export default function StocktakePage() {
             {isLoading ? (
               <div className="space-y-2 p-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-11 w-full" />)}</div>
             ) : filtered.length === 0 ? (
-              <EmptyState title="Material tapılmadı" description="Filtrə uyğun material yoxdur" />
+              <EmptyState title="Nəticə tapılmadı" description="Filtrə uyğun element yoxdur" />
             ) : (
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Kod</TableHead>
-                      <TableHead>Material</TableHead>
+                      <TableHead>{scope === 'raw' ? 'Kod' : 'SKU'}</TableHead>
+                      <TableHead>{scope === 'raw' ? 'Material' : 'Məhsul'}</TableHead>
                       <TableHead className="text-right">Sistem qalığı</TableHead>
                       <TableHead className="text-right w-36">Faktiki sayım</TableHead>
                       <TableHead className="text-right">Fərq</TableHead>
@@ -143,15 +164,15 @@ export default function StocktakePage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filtered.map((m) => {
-                      const raw = counts[m.id];
+                    {filtered.map((it) => {
+                      const raw = counts[it.id];
                       const counted = raw === undefined || raw === '' ? null : Number(raw);
-                      const delta = counted === null || Number.isNaN(counted) ? null : counted - (m.currentStock ?? 0);
+                      const delta = counted === null || Number.isNaN(counted) ? null : counted - it.stock;
                       return (
-                        <TableRow key={m.id} className={cn(delta !== null && Math.abs(delta) > 1e-9 && 'bg-amber-500/[0.04]')}>
-                          <TableCell className="font-mono text-xs">{m.code}</TableCell>
-                          <TableCell className="font-medium">{m.name}<span className="ml-1 text-xs text-muted-foreground">{m.unit}</span></TableCell>
-                          <TableCell className="text-right tabular-nums">{formatNumber(m.currentStock ?? 0)}</TableCell>
+                        <TableRow key={it.id} className={cn(delta !== null && Math.abs(delta) > 1e-9 && 'bg-amber-500/[0.04]')}>
+                          <TableCell className="font-mono text-xs">{it.code}</TableCell>
+                          <TableCell className="font-medium">{it.name}<span className="ml-1 text-xs text-muted-foreground">{it.unit}</span></TableCell>
+                          <TableCell className="text-right tabular-nums">{formatNumber(it.stock)}</TableCell>
                           <TableCell className="text-right">
                             <Input
                               type="number"
@@ -160,14 +181,14 @@ export default function StocktakePage() {
                               className="h-8 w-28 text-right tabular-nums ml-auto"
                               placeholder="—"
                               value={raw ?? ''}
-                              onChange={(e) => setCounts((c) => ({ ...c, [m.id]: e.target.value }))}
+                              onChange={(e) => setCounts((c) => ({ ...c, [it.id]: e.target.value }))}
                             />
                           </TableCell>
                           <TableCell className={cn('text-right tabular-nums font-medium', delta === null ? 'text-muted-foreground' : delta < 0 ? 'text-rose-600' : delta > 0 ? 'text-emerald-600' : '')}>
                             {delta === null ? '—' : `${delta > 0 ? '+' : ''}${formatNumber(delta, 1)}`}
                           </TableCell>
                           <TableCell className={cn('text-right tabular-nums', delta && delta < 0 ? 'text-rose-600' : delta && delta > 0 ? 'text-emerald-600' : 'text-muted-foreground')}>
-                            {delta === null ? '—' : formatCurrency(delta * (m.avgCost ?? 0), 'AZN')}
+                            {delta === null ? '—' : formatCurrency(delta * it.unitCost, 'AZN')}
                           </TableCell>
                         </TableRow>
                       );
@@ -177,7 +198,7 @@ export default function StocktakePage() {
               </div>
             )}
           </Card>
-          <p className="mt-2 text-xs text-muted-foreground">Yalnız dəyəri daxil edilmiş materiallar üzrə düzəliş edilir. Fərq stok hərəkəti (ADJ_INVENTORY) kimi yazılır və maya dəyərinə təsir edir.</p>
+          <p className="mt-2 text-xs text-muted-foreground">{scope === 'raw' ? 'Fərq stok hərəkəti (ADJ_INVENTORY) kimi yazılır və maya dəyərinə təsir edir.' : 'Hazır məhsul variantının cari və mövcud stoku faktiki sayıma uyğunlaşdırılır.'}</p>
         </TabsContent>
 
         <TabsContent value="history">
@@ -190,7 +211,7 @@ export default function StocktakePage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>№</TableHead><TableHead>Tarix</TableHead><TableHead>İcraçı</TableHead>
+                      <TableHead>№</TableHead><TableHead>Növ</TableHead><TableHead>Tarix</TableHead><TableHead>İcraçı</TableHead>
                       <TableHead className="text-right">Sətir</TableHead><TableHead className="text-right">Fərq (ədəd)</TableHead><TableHead className="text-right">Fərq dəyəri</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -198,6 +219,7 @@ export default function StocktakePage() {
                     {history.map((s) => (
                       <TableRow key={s.id}>
                         <TableCell className="font-mono text-xs">{s.number}</TableCell>
+                        <TableCell className="text-sm">{s.scope === 'finished' ? 'Hazır məhsul' : 'Xam material'}</TableCell>
                         <TableCell>{formatDate((s.createdAt as { toMillis?: () => number })?.toMillis?.())}</TableCell>
                         <TableCell>{s.createdByName ?? '—'}</TableCell>
                         <TableCell className="text-right">{s.countedLines}</TableCell>

@@ -55,7 +55,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/warehouses', labelKey: 'warehouses', icon: Warehouse, module: 'raw_materials' },
       { href: '/suppliers', labelKey: 'suppliers', icon: Truck, module: 'suppliers' },
       { href: '/procurement', labelKey: 'procurement', icon: ShoppingCart, module: 'purchase_orders' },
-      { href: '/planning', labelKey: 'planning', icon: CalendarRange, module: 'reports' },
+      { href: '/planning', labelKey: 'planning', icon: CalendarRange, module: 'raw_materials' },
     ],
   },
   {

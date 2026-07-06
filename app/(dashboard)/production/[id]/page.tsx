@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from '@/components/ui/toast';
+import { initOperations, completeAllOperations, fetchOperations } from '@/lib/firebase/operations';
 import { CompleteDialog } from '../complete-dialog';
 import { WashingSendDialog, WashingReturnDialog } from '../washing-dialogs';
 import { OperationsPanel } from './operations-panel';
@@ -64,6 +65,7 @@ export default function ProductionDetailPage() {
     qc.invalidateQueries({ queryKey: ['production_orders', id] });
     qc.invalidateQueries({ queryKey: ['washing_orders', id] });
     qc.invalidateQueries({ queryKey: ['raw_materials'] });
+    qc.invalidateQueries({ queryKey: ['production_operations', id] });
   }
 
   async function handleStart() {
@@ -73,6 +75,9 @@ export default function ProductionDetailPage() {
     setWorking(true);
     try {
       await startProduction(order, bom, actor);
+      // Shop-floor mərhələləri yoxdursa avtomatik yarat
+      const existing = await fetchOperations(order.id);
+      if (!existing) await initOperations(order, actor);
       toast.success('İstehsal başladı — materiallar stokdan çıxdı');
       refresh();
     } catch (e) {
@@ -80,6 +85,11 @@ export default function ProductionDetailPage() {
     } finally {
       setWorking(false);
     }
+  }
+
+  async function handleCompleted() {
+    if (order) await completeAllOperations(order.id, actor).catch(() => {});
+    refresh();
   }
 
   if (isLoading) return <Skeleton className="h-64 w-full" />;
@@ -199,7 +209,7 @@ export default function ProductionDetailPage() {
         </Card>
       </div>
 
-      <CompleteDialog order={order} open={completeOpen} onOpenChange={setCompleteOpen} onDone={refresh} />
+      <CompleteDialog order={order} open={completeOpen} onOpenChange={setCompleteOpen} onDone={handleCompleted} />
       <WashingSendDialog order={order} open={washOpen} onOpenChange={setWashOpen} onDone={refresh} />
       <WashingReturnDialog wash={returnWash} order={order} open={!!returnWash} onOpenChange={(o) => !o && setReturnWash(null)} onDone={refresh} />
     </div>

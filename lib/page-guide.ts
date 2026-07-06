@@ -259,6 +259,13 @@ export const PAGE_GUIDE: Record<string, PageGuideMeta> = {
     prev: '—', next: 'İşçilər, davamiyyət, əmək haqqı',
     affects: 'Yalnız oxunur — HR idarəetmə xülasəsi.',
   },
+  '/my-hr': {
+    title: 'Mənim HR (Self-Service)',
+    purpose: 'İşçi öz profilini, məzuniyyət balansını, sorğularını və davamiyyətini görür.',
+    how: ['Məzuniyyət balansına bax', 'Yeni məzuniyyət sorğusu göndər', 'Son davamiyyətini izlə'],
+    prev: '—', next: 'HR təsdiqi (məzuniyyət)',
+    affects: 'Sorğular HR təsdiqinə gedir; təsdiqdə balans tutulur.',
+  },
   '/profile': {
     title: 'Profilim',
     purpose: 'Şəxsi məlumatlar, profil şəkli və hesab tənzimləmələri.',

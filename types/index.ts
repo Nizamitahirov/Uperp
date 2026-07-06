@@ -1035,3 +1035,27 @@ export interface Shift {
   standardHours: number;
   isNight?: boolean;
 }
+
+export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+export interface LeaveRequest {
+  id: string;
+  requestNumber?: string;
+  employeeId: string;
+  employeeName?: string;
+  userId?: string | null;
+  type: string;
+  typeLabel?: string;
+  paid: boolean;
+  affectsBalance: boolean;
+  startDate: Timestamp | Date;
+  endDate: Timestamp | Date;
+  days: number;
+  reason?: string;
+  status: LeaveStatus;
+  decidedBy?: string;
+  decidedByName?: string;
+  decidedAt?: Timestamp | null;
+  decisionNote?: string;
+  createdAt?: Timestamp | null;
+}

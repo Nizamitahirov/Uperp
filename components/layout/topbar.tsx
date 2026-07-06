@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
-import { Inbox, LogOut, Menu, Settings, User } from 'lucide-react';
+import { Inbox, LogOut, Menu, Settings, User, HeartHandshake } from 'lucide-react';
 import { useInbox } from '@/hooks/use-inbox';
 import { PageGuide } from '@/components/shared/page-guide';
 import { useAuth } from '@/components/providers/auth-provider';
@@ -73,6 +73,11 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
             <DropdownMenuItem asChild>
               <Link href="/profile">
                 <User className="h-4 w-4" /> {t('profile')}
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/my-hr">
+                <HeartHandshake className="h-4 w-4" /> Mənim HR
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>

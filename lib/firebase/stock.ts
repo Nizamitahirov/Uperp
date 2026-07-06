@@ -235,6 +235,12 @@ export async function adjustInventory(
   const db = getDb();
   const matRef = doc(db, 'raw_materials', materialId);
   const moveRef = doc(collection(db, 'stock_movements'));
+  const newLayerRef = doc(collection(db, `raw_materials/${materialId}/cost_layers`));
+
+  // FIFO mənfi fərq üçün aktiv layer-ləri əvvəlcədən gətir (tx query dəstəkləmir)
+  const layersCol = collection(db, `raw_materials/${materialId}/cost_layers`);
+  const layerSnap = await getDocs(query(layersCol, where('isExhausted', '==', false), orderBy('createdAt', 'asc')));
+  const layerRefs = layerSnap.docs.map((d) => doc(db, `raw_materials/${materialId}/cost_layers`, d.id));
 
   await runTransaction(db, async (tx) => {
     const matSnap = await tx.get(matRef);
@@ -244,10 +250,52 @@ export async function adjustInventory(
     const delta = countedQty - oldStock;
     if (Math.abs(delta) < 1e-9) return;
 
-    const unitCost = m.avgCost ?? 0;
+    const avg = m.avgCost ?? 0;
+    let unitCost = avg;
+    let totalCost = delta * avg;
+    let newValue = countedQty * avg;
+
+    if (m.costingMethod === 'FIFO') {
+      if (delta > 0) {
+        // Müsbət fərq → cari orta maya ilə yeni cost layer
+        tx.set(newLayerRef, {
+          materialId, grnId: null, originalQty: delta, remainingQty: delta,
+          unitCost: avg, isExhausted: false, receivedDate: serverTimestamp(), createdAt: serverTimestamp(),
+          note: 'İnventarizasiya artımı',
+        });
+        totalCost = delta * avg;
+      } else {
+        // Mənfi fərq → layer-lərdən FIFO ilə tükəndir
+        const liveLayers: LayerLike[] = [];
+        const refById = new Map<string, ReturnType<typeof doc>>();
+        for (const ref of layerRefs) {
+          const ls = await tx.get(ref);
+          if (!ls.exists()) continue;
+          const d = ls.data();
+          if (d.isExhausted || (d.remainingQty ?? 0) <= 0) continue;
+          liveLayers.push({ id: ref.id, remainingQty: d.remainingQty, unitCost: d.unitCost });
+          refById.set(ref.id, ref);
+        }
+        const layerSum = liveLayers.reduce((a, l) => a + l.remainingQty, 0);
+        const need = Math.min(-delta, layerSum);
+        if (need > 0) {
+          const fifo = fifoIssue(liveLayers, need);
+          for (const c of fifo.consumed) {
+            const ref = refById.get(c.layerId)!;
+            const layer = liveLayers.find((l) => l.id === c.layerId)!;
+            const remaining = layer.remainingQty - c.qty;
+            tx.update(ref, { remainingQty: remaining, isExhausted: remaining <= 1e-9 });
+          }
+          unitCost = fifo.avgUnitCost || avg;
+          totalCost = -fifo.totalCost;
+        }
+      }
+      newValue = Math.max(0, (m.stockValue ?? oldStock * avg) + totalCost);
+    }
+
     tx.update(matRef, {
       currentStock: countedQty,
-      stockValue: countedQty * unitCost,
+      stockValue: newValue,
       updatedAt: serverTimestamp(),
     });
     tx.set(moveRef, {
@@ -256,7 +304,7 @@ export async function adjustInventory(
       type: 'ADJ_INVENTORY' as MovementType,
       quantity: delta,
       unitCost,
-      totalCost: delta * unitCost,
+      totalCost,
       balanceAfter: countedQty,
       referenceType: 'Inventory',
       referenceId: '',

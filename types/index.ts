@@ -1007,3 +1007,31 @@ export interface EmployeeDocument {
   expiryDate?: Timestamp | null;
   createdAt?: Timestamp | null;
 }
+
+export type AttendanceStatus = 'present' | 'absent' | 'leave' | 'holiday' | 'half_day' | 'remote';
+
+export interface Attendance {
+  id: string; // `${employeeId}_${YYYY-MM-DD}`
+  employeeId: string;
+  employeeName?: string;
+  userId?: string | null;
+  date: Timestamp | Date;
+  dateKey: string; // YYYY-MM-DD
+  status: AttendanceStatus;
+  checkIn?: string; // "09:00"
+  checkOut?: string;
+  hoursWorked: number;
+  overtimeHours: number;
+  note?: string;
+  createdBy?: string;
+  updatedAt?: Timestamp | null;
+}
+
+export interface Shift {
+  id: string;
+  name: string;
+  startTime: string; // "09:00"
+  endTime: string;
+  standardHours: number;
+  isNight?: boolean;
+}

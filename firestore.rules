@@ -160,13 +160,13 @@ service cloud.firestore {
 
     // ── Hazır məhsul + kataloq ──────────────────────────────
     match /finished_goods/{docId} {
-      allow read: if signedIn();
+      allow read: if can('finished_goods','read',['director','accountant','warehouse','production','sales','cashier','supply','customer']);
       allow create: if can('finished_goods','create',['director','warehouse','production']);
       allow update: if can('finished_goods','update',['director','warehouse','production']);
       allow delete: if can('finished_goods','delete',['director']);
     }
     match /products/{productId} {
-      allow read: if signedIn();
+      allow read: if can('products','read',['director','accountant','warehouse','production','sales','cashier','supply','customer']);
       allow create: if can('products','create',['director','production']);
       allow update: if can('products','update',['director','production']);
       allow delete: if can('products','delete',['director']);
@@ -283,7 +283,11 @@ service cloud.firestore {
     }
     match /settings/{docId} {
       allow read: if signedIn();
-      allow write: if hasRole(['director']);
+      // role_permissions yalnız director (privilege escalation qorunması);
+      // digər tənzimləmələr matris üzrə 'settings' update icazəsi ilə
+      allow write: if docId == 'role_permissions'
+                      ? hasRole(['director'])
+                      : can('settings', 'update', ['director']);
     }
     match /exchange_rates/{docId} {
       allow read: if signedIn();

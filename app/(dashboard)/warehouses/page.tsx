@@ -3,9 +3,9 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { orderBy } from 'firebase/firestore';
-import { Warehouse as WarehouseIcon, Plus, Pencil, Trash2, ArrowLeftRight, Loader2 } from 'lucide-react';
+import { Warehouse as WarehouseIcon, Plus, Pencil, Trash2, ArrowLeftRight, Loader2, MapPin } from 'lucide-react';
 import { listDocs } from '@/lib/firebase/firestore';
-import { createWarehouse, updateWarehouse, deleteWarehouse, createTransfer } from '@/lib/firebase/warehouses';
+import { createWarehouse, updateWarehouse, deleteWarehouse, createTransfer, locationBreakdown, UNASSIGNED } from '@/lib/firebase/warehouses';
 import { useAuth } from '@/components/providers/auth-provider';
 import type { RawMaterial, StockTransfer, Warehouse } from '@/types';
 import { formatNumber, formatDate } from '@/lib/utils/format';
@@ -49,6 +49,13 @@ export default function WarehousesPage() {
   const ms = (t: unknown) => (t as { toMillis?: () => number })?.toMillis?.();
   const activeWh = useMemo(() => warehouses.filter((w) => w.isActive), [warehouses]);
 
+  const selMat = materials.find((m) => m.id === tr.materialId);
+  const trAvail = useMemo(() => {
+    if (!selMat) return 0;
+    const { buckets, unassigned } = locationBreakdown(selMat);
+    return tr.fromWarehouseId === UNASSIGNED ? unassigned : (buckets[tr.fromWarehouseId] ?? 0);
+  }, [selMat, tr.fromWarehouseId]);
+
   function openWh(w?: Warehouse) {
     if (w) { setEditing(w); setForm({ code: w.code, name: w.name, type: w.type, address: w.address ?? '', isActive: w.isActive }); }
     else { setEditing(null); setForm({ code: '', name: '', type: 'general', address: '', isActive: true }); }
@@ -77,12 +84,12 @@ export default function WarehousesPage() {
     if (!tr.fromWarehouseId || !tr.toWarehouseId || !tr.materialId || tr.quantity <= 0) { toast.error('Bütün sahələri doldurun'); return; }
     setSaving(true);
     try {
-      const from = warehouses.find((w) => w.id === tr.fromWarehouseId);
-      const to = warehouses.find((w) => w.id === tr.toWarehouseId);
-      await createTransfer({ ...tr, fromWarehouseName: from?.name, toWarehouseName: to?.name }, actor);
+      const whName = (id: string) => (id === UNASSIGNED ? 'Təyin edilməmiş' : warehouses.find((w) => w.id === id)?.name);
+      await createTransfer({ ...tr, fromWarehouseName: whName(tr.fromWarehouseId), toWarehouseName: whName(tr.toWarehouseId) }, actor);
       toast.success('Transfer qeydə alındı');
       setTrOpen(false); setTr({ fromWarehouseId: '', toWarehouseId: '', materialId: '', quantity: 0, note: '' });
       qc.invalidateQueries({ queryKey: ['stock_transfers'] });
+      qc.invalidateQueries({ queryKey: ['raw_materials'] });
     } catch (e) { toast.error('Alınmadı', e instanceof Error ? e.message : undefined); } finally { setSaving(false); }
   }
 
@@ -94,6 +101,7 @@ export default function WarehousesPage() {
         <TabsList>
           <TabsTrigger value="warehouses"><WarehouseIcon className="mr-1.5 h-4 w-4" /> Anbarlar</TabsTrigger>
           <TabsTrigger value="transfers"><ArrowLeftRight className="mr-1.5 h-4 w-4" /> Transferlər</TabsTrigger>
+          <TabsTrigger value="location"><MapPin className="mr-1.5 h-4 w-4" /> Stok yerləşməsi</TabsTrigger>
         </TabsList>
 
         <TabsContent value="warehouses">
@@ -162,7 +170,42 @@ export default function WarehousesPage() {
               </Table>
             )}
           </Card>
-          <p className="mt-2 text-xs text-muted-foreground">Transfer fiziki yerdəyişməni sənədləşdirir və stok hərəkəti (TRF_WAREHOUSE) yazır. Ümumi stok qalığı dəyişmir.</p>
+          <p className="mt-2 text-xs text-muted-foreground">Transfer materialı anbarlar (və «təyin edilməmiş» hovuz) arasında köçürür. Ümumi stok qalığı dəyişmir, yalnız yerləşmə dəyişir.</p>
+        </TabsContent>
+
+        <TabsContent value="location">
+          <Card className="rounded-card">
+            {materials.filter((m) => (m.currentStock ?? 0) > 0).length === 0 ? (
+              <EmptyState title="Stok yoxdur" description="Anbar qalığı olan material yoxdur" />
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Material</TableHead>
+                      <TableHead className="text-right">Cəmi</TableHead>
+                      <TableHead className="text-right">Təyin edilməmiş</TableHead>
+                      {warehouses.map((w) => <TableHead key={w.id} className="text-right whitespace-nowrap">{w.name}</TableHead>)}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {materials.filter((m) => (m.currentStock ?? 0) > 0).map((m) => {
+                      const { buckets, unassigned } = locationBreakdown(m);
+                      return (
+                        <TableRow key={m.id}>
+                          <TableCell className="font-medium">{m.name}<span className="ml-1 text-xs text-muted-foreground">{m.unit}</span></TableCell>
+                          <TableCell className="text-right tabular-nums font-semibold">{formatNumber(m.currentStock ?? 0)}</TableCell>
+                          <TableCell className="text-right tabular-nums text-muted-foreground">{unassigned > 0 ? formatNumber(unassigned) : '—'}</TableCell>
+                          {warehouses.map((w) => <TableCell key={w.id} className="text-right tabular-nums">{buckets[w.id] ? formatNumber(buckets[w.id]) : '—'}</TableCell>)}
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </Card>
+          <p className="mt-2 text-xs text-muted-foreground">«Təyin edilməmiş» — hələ heç bir anbara yerləşdirilməmiş qalıq. Transfer ilə anbarlara paylayın.</p>
         </TabsContent>
       </Tabs>
 
@@ -200,20 +243,29 @@ export default function WarehousesPage() {
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5"><Label>Mənbə anbar *</Label>
-                <Select value={tr.fromWarehouseId} onValueChange={(v) => setTr({ ...tr, fromWarehouseId: v })}>
+              <div className="space-y-1.5"><Label>Mənbə *</Label>
+                <Select value={tr.fromWarehouseId} onValueChange={(v) => setTr({ ...tr, fromWarehouseId: v, toWarehouseId: tr.toWarehouseId === v ? '' : tr.toWarehouseId })}>
                   <SelectTrigger><SelectValue placeholder="Seç" /></SelectTrigger>
-                  <SelectContent>{activeWh.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent>
+                  <SelectContent>
+                    <SelectItem value={UNASSIGNED}>Təyin edilməmiş</SelectItem>
+                    {activeWh.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                  </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5"><Label>Hədəf anbar *</Label>
+              <div className="space-y-1.5"><Label>Hədəf *</Label>
                 <Select value={tr.toWarehouseId} onValueChange={(v) => setTr({ ...tr, toWarehouseId: v })}>
                   <SelectTrigger><SelectValue placeholder="Seç" /></SelectTrigger>
-                  <SelectContent>{activeWh.filter((w) => w.id !== tr.fromWarehouseId).map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent>
+                  <SelectContent>
+                    {tr.fromWarehouseId !== UNASSIGNED && <SelectItem value={UNASSIGNED}>Təyin edilməmiş</SelectItem>}
+                    {activeWh.filter((w) => w.id !== tr.fromWarehouseId).map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                  </SelectContent>
                 </Select>
               </div>
             </div>
-            <div className="space-y-1.5"><Label>Miqdar *</Label><Input type="number" step="any" value={tr.quantity} onChange={(e) => setTr({ ...tr, quantity: +e.target.value })} /></div>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between"><Label>Miqdar *</Label>{tr.materialId && tr.fromWarehouseId && <span className="text-xs text-muted-foreground">Mənbədə: {formatNumber(trAvail)} {selMat?.unit}</span>}</div>
+              <Input type="number" step="any" value={tr.quantity} onChange={(e) => setTr({ ...tr, quantity: +e.target.value })} />
+            </div>
             <div className="space-y-1.5"><Label>Qeyd</Label><Input value={tr.note} onChange={(e) => setTr({ ...tr, note: e.target.value })} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setTrOpen(false)}>Ləğv</Button><Button onClick={saveTransfer} disabled={saving}>{saving && <Loader2 className="h-4 w-4 animate-spin" />} Transfer et</Button></DialogFooter>

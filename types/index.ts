@@ -73,6 +73,9 @@ export interface RawMaterial {
   lastPurchasePrice?: number;
   currency: string;
   stockValue: number;
+  /** Anbar (warehouse doc id) → yerləşdirilmiş miqdar. Cəmi currentStock-dan az
+   *  olan hissə "təyin edilməmiş" hovuzda sayılır (transfer ilə yerləşdirilir). */
+  stockByWarehouse?: Record<string, number>;
   primarySupplierId?: string;
   alternativeSupplierIds?: string[];
   leadTimeDays?: number;

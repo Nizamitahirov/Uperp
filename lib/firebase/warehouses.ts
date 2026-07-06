@@ -1,10 +1,20 @@
-import { addDoc, collection, deleteDoc, doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { getDb } from './config';
 import { nextNumber } from './counters';
 import { logAudit } from './audit';
 import type { RawMaterial, Warehouse } from '@/types';
 
 interface Actor { uid: string; username: string }
+
+/** Təyin edilməmiş (heç bir anbara yerləşdirilməmiş) stok üçün virtual açar */
+export const UNASSIGNED = '__unassigned';
+
+/** Materialın anbar üzrə bölgüsü + təyin edilməmiş qalıq */
+export function locationBreakdown(m: Pick<RawMaterial, 'currentStock' | 'stockByWarehouse'>): { buckets: Record<string, number>; unassigned: number } {
+  const buckets = m.stockByWarehouse ?? {};
+  const assigned = Object.values(buckets).reduce((a, v) => a + (v || 0), 0);
+  return { buckets, unassigned: Math.max(0, (m.currentStock ?? 0) - assigned) };
+}
 
 export async function createWarehouse(data: Omit<Warehouse, 'id' | 'createdAt'>, actor: Actor): Promise<string> {
   const ref = await addDoc(collection(getDb(), 'warehouses'), { ...data, createdAt: serverTimestamp() });
@@ -34,12 +44,33 @@ export async function createTransfer(
   if (params.quantity <= 0) throw new Error('Miqdar müsbət olmalıdır');
 
   const db = getDb();
-  const matSnap = await getDoc(doc(db, 'raw_materials', params.materialId));
-  const mat = matSnap.exists() ? (matSnap.data() as RawMaterial) : null;
-  const unitCost = mat?.avgCost ?? 0;
-  const balance = mat?.currentStock ?? 0;
-  const number = await nextNumber('TRF');
+  const matRef = doc(db, 'raw_materials', params.materialId);
+  const qty = params.quantity;
 
+  // Real anbar balansını köçür (overlay model — ümumi currentStock dəyişmir)
+  const { unitCost, balance, materialName, unit } = await runTransaction(db, async (tx) => {
+    const snap = await tx.get(matRef);
+    if (!snap.exists()) throw new Error('Material tapılmadı');
+    const m = snap.data() as RawMaterial;
+    const { buckets, unassigned } = locationBreakdown(m);
+    const next = { ...buckets };
+
+    const fromAvail = params.fromWarehouseId === UNASSIGNED ? unassigned : (next[params.fromWarehouseId] ?? 0);
+    if (fromAvail < qty - 1e-9) throw new Error('Mənbə anbarda kifayət qədər stok yoxdur');
+
+    if (params.fromWarehouseId !== UNASSIGNED) {
+      const rem = (next[params.fromWarehouseId] ?? 0) - qty;
+      if (rem <= 1e-9) delete next[params.fromWarehouseId];
+      else next[params.fromWarehouseId] = rem;
+    }
+    if (params.toWarehouseId !== UNASSIGNED) {
+      next[params.toWarehouseId] = (next[params.toWarehouseId] ?? 0) + qty;
+    }
+    tx.update(matRef, { stockByWarehouse: next, updatedAt: serverTimestamp() });
+    return { unitCost: m.avgCost ?? 0, balance: m.currentStock ?? 0, materialName: m.name, unit: m.unit };
+  });
+
+  const number = await nextNumber('TRF');
   const ref = await addDoc(collection(db, 'stock_transfers'), {
     number,
     fromWarehouseId: params.fromWarehouseId,
@@ -47,8 +78,8 @@ export async function createTransfer(
     toWarehouseId: params.toWarehouseId,
     toWarehouseName: params.toWarehouseName ?? null,
     materialId: params.materialId,
-    materialName: mat?.name ?? null,
-    unit: mat?.unit ?? null,
+    materialName: materialName ?? null,
+    unit: unit ?? null,
     quantity: params.quantity,
     note: params.note ?? null,
     status: 'completed',
@@ -59,7 +90,7 @@ export async function createTransfer(
 
   // Audit üçün stok hərəkətləri (ümumi qalıq dəyişmir)
   const base = {
-    materialId: params.materialId, materialName: mat?.name ?? '', type: 'TRF_WAREHOUSE' as const,
+    materialId: params.materialId, materialName: materialName ?? '', type: 'TRF_WAREHOUSE' as const,
     unitCost, referenceType: 'Transfer' as const, referenceId: ref.id, userId: actor.uid, username: actor.username,
     notes: params.note ?? null, createdAt: serverTimestamp(),
   };

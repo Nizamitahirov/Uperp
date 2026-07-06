@@ -1059,3 +1059,67 @@ export interface LeaveRequest {
   decisionNote?: string;
   createdAt?: Timestamp | null;
 }
+
+export type PayrollRunStatus = 'draft' | 'approved' | 'paid';
+
+export interface PayrollRun {
+  id: string;
+  number: string;
+  period: string; // YYYY-MM
+  status: PayrollRunStatus;
+  employeeCount: number;
+  totalGross: number;
+  totalNet: number;
+  totalTax: number;
+  totalStatutory: number;
+  totalEmployerCost: number;
+  postedExpenseId?: string;
+  createdBy?: string;
+  createdByName?: string;
+  createdAt?: Timestamp | null;
+  approvedAt?: Timestamp | null;
+  paidAt?: Timestamp | null;
+}
+
+export interface Payslip {
+  id: string;
+  runId: string;
+  period: string;
+  employeeId: string;
+  employeeName?: string;
+  userId?: string | null;
+  payType: string;
+  presentDays: number;
+  totalHours: number;
+  overtimeHours: number;
+  base: number;
+  overtime: number;
+  pieceRatePay: number;
+  allowances: number;
+  gross: number;
+  incomeTax: number;
+  socialEmployee: number;
+  unemploymentEmployee: number;
+  medicalEmployee: number;
+  otherDeductions: number;
+  advances: number;
+  totalDeductions: number;
+  net: number;
+  employerContrib: number;
+  employerCost: number;
+  bankName?: string;
+  iban?: string;
+  createdAt?: Timestamp | null;
+}
+
+export interface SalaryAdvance {
+  id: string;
+  employeeId: string;
+  employeeName?: string;
+  amount: number;
+  date?: Timestamp | null;
+  status: 'open' | 'deducted';
+  payslipId?: string;
+  note?: string;
+  createdAt?: Timestamp | null;
+}

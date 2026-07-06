@@ -919,3 +919,91 @@ export interface AuditLog {
   ipAddress?: string;
   userAgent?: string;
 }
+
+// ═══════════════════════════════════════════════════════════
+// İNSAN RESURSLARI & ƏMƏK HAQQI (HR & Payroll)
+// ═══════════════════════════════════════════════════════════
+
+export interface Department {
+  id: string;
+  code: string;
+  name: string;
+  parentId?: string | null;
+  managerId?: string | null;
+  managerName?: string;
+  createdAt?: Timestamp | null;
+}
+
+export interface Position {
+  id: string;
+  title: string;
+  departmentId?: string | null;
+  departmentName?: string;
+  level?: number;
+  baseSalaryMin?: number;
+  baseSalaryMax?: number;
+  createdAt?: Timestamp | null;
+}
+
+export type EmployeeStatus = 'active' | 'probation' | 'on_leave' | 'suspended' | 'terminated';
+export type ContractType = 'permanent' | 'fixed_term' | 'part_time' | 'intern';
+export type PayType = 'monthly' | 'daily' | 'hourly' | 'piece_rate';
+
+export interface SalaryComponent {
+  name: string;
+  amount: number;
+  type: 'allowance' | 'deduction';
+}
+
+export interface Employee {
+  id: string;
+  employeeNo: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  avatarUrl?: string;
+  gender?: 'male' | 'female' | 'other';
+  birthDate?: Timestamp | null;
+  nationalId?: string; // FIN / şəxsiyyət
+  phone?: string;
+  email?: string;
+  address?: string;
+  emergencyContact?: string;
+  // İş məlumatları
+  departmentId?: string | null;
+  departmentName?: string;
+  positionId?: string | null;
+  positionTitle?: string;
+  managerId?: string | null;
+  hireDate?: Timestamp | null;
+  contractType: ContractType;
+  contractEndDate?: Timestamp | null;
+  status: EmployeeStatus;
+  workLocation?: string;
+  // Əmək haqqı strukturu
+  payType: PayType;
+  baseSalary: number; // aylıq brüt (və ya günlük/saatlıq dərəcə)
+  pieceRates?: Record<string, number>; // əməliyyat (stage) → ədəd başına ₼
+  allowances?: SalaryComponent[];
+  deductions?: SalaryComponent[];
+  bankName?: string;
+  iban?: string;
+  // Məzuniyyət
+  annualLeaveEntitlement?: number; // illik gün
+  leaveBalance?: number; // qalan gün
+  // ESS bağı
+  userId?: string | null;
+  createdBy?: string;
+  createdAt?: Timestamp | null;
+  updatedAt?: Timestamp | null;
+}
+
+export interface EmployeeDocument {
+  id: string;
+  employeeId: string;
+  type: 'contract' | 'id' | 'certificate' | 'diploma' | 'medical' | 'other';
+  name: string;
+  url: string;
+  expiryDate?: Timestamp | null;
+  createdAt?: Timestamp | null;
+}

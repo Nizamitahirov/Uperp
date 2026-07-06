@@ -60,12 +60,21 @@
     "audit": "Audit Log",
     "users": "İstifadəçilər",
     "roles": "Rollar",
-    "settings": "Tənzimləmələr"
+    "settings": "Tənzimləmələr",
+    "hr": "HR İdarə paneli",
+    "hr_employees": "İşçilər",
+    "hr_org": "Struktur",
+    "hr_attendance": "Davamiyyət",
+    "hr_leave": "Məzuniyyət",
+    "hr_payroll": "Əmək haqqı",
+    "hr_settings": "HR Tənzimləmələr",
+    "my_hr": "Mənim HR"
   },
   "navGroup": {
     "warehouse_supply": "Anbar & Təchizat",
     "production": "İstehsal",
     "sales_customer": "Satış & Müştəri",
+    "human_resources": "İnsan Resursları",
     "finance_admin": "Maliyyə & Sistem"
   },
   "materials": {

@@ -60,12 +60,21 @@
     "audit": "Audit Log",
     "users": "Users",
     "roles": "Roles",
-    "settings": "Settings"
+    "settings": "Settings",
+    "hr": "HR Dashboard",
+    "hr_employees": "Employees",
+    "hr_org": "Structure",
+    "hr_attendance": "Attendance",
+    "hr_leave": "Leave",
+    "hr_payroll": "Payroll",
+    "hr_settings": "HR Settings",
+    "my_hr": "My HR"
   },
   "navGroup": {
     "warehouse_supply": "Warehouse & Supply",
     "production": "Production",
     "sales_customer": "Sales & Customer",
+    "human_resources": "Human Resources",
     "finance_admin": "Finance & System"
   },
   "materials": {

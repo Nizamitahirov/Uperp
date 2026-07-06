@@ -13,6 +13,7 @@ export type RoleCode =
   | 'sales'
   | 'cashier'
   | 'supply'
+  | 'hr_manager'
   | 'customer';
 
 export type PermissionAction = 'create' | 'read' | 'update' | 'delete' | 'approve';
@@ -42,6 +43,7 @@ export type ModuleKey =
   | 'reports'
   | 'notifications'
   | 'ai'
+  | 'hr'
   | 'settings';
 
 export interface RoleDefinition {
@@ -60,6 +62,7 @@ export const ROLES: Record<RoleCode, RoleDefinition> = {
   sales: { code: 'sales', name: 'Satış Meneceri', level: 7, description: 'Müştəri, sifariş, qiymət' },
   cashier: { code: 'cashier', name: 'Satıcı/Kassir', level: 4, description: 'POS, kassa, məhdud müştəri' },
   supply: { code: 'supply', name: 'Təchizat Meneceri', level: 7, description: 'Supplier, PO, GRN' },
+  hr_manager: { code: 'hr_manager', name: 'HR Meneceri', level: 8, description: 'İşçilər, davamiyyət, məzuniyyət, əmək haqqı' },
   customer: { code: 'customer', name: 'Müştəri (B2B)', level: 1, description: 'Yalnız kataloq + öz sifarişləri' },
 };
 
@@ -81,7 +84,7 @@ const CRUDA: PermissionAction[] = ['create', 'read', 'update', 'delete', 'approv
  * data filtrasiyası Firestore Rules-da tətbiq olunur.
  */
 const MATRIX: Record<ModuleKey, Partial<Record<RoleCode, PermissionAction[]>>> = {
-  dashboard: { director: CRUD, accountant: R, warehouse: R, production: R, sales: R, supply: R },
+  dashboard: { director: CRUD, accountant: R, warehouse: R, production: R, sales: R, supply: R, hr_manager: R },
   users: { director: CRUD },
   roles: { director: CRUD },
   raw_materials: { director: CRUD, accountant: R, warehouse: CRUD, production: R, supply: CRUD },
@@ -104,8 +107,9 @@ const MATRIX: Record<ModuleKey, Partial<Record<RoleCode, PermissionAction[]>>> =
   finance: { director: CRUD, accountant: CRUD },
   reports: { director: CRUD, accountant: CRUD, warehouse: R, production: R, sales: R, supply: R },
   notifications: { director: CRUD, accountant: R, warehouse: R, production: R, sales: R, cashier: R, supply: R },
-  ai: { director: CRUD, accountant: R, warehouse: R, production: R, sales: R, cashier: R, supply: R, customer: R },
-  settings: { director: CRUD },
+  ai: { director: CRUD, accountant: R, warehouse: R, production: R, sales: R, cashier: R, supply: R, customer: R, hr_manager: R },
+  hr: { director: CRUDA, accountant: R, hr_manager: CRUDA },
+  settings: { director: CRUD, hr_manager: R },
 };
 
 /** Modul açarları (matris sırası ilə) */
@@ -137,6 +141,7 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
   reports: 'Hesabatlar',
   notifications: 'Bildirişlər',
   ai: 'AI Assistant',
+  hr: 'İnsan Resursları (HR)',
   settings: 'Tənzimləmələr',
 };
 

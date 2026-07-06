@@ -19,6 +19,12 @@ import {
   CalendarRange,
   UserCog,
   Settings,
+  UsersRound,
+  Building2,
+  CalendarClock,
+  Plane,
+  Banknote,
+  HeartHandshake,
   type LucideIcon,
 } from 'lucide-react';
 import type { ModuleKey } from '@/lib/rbac/permissions';
@@ -76,6 +82,17 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/sales', labelKey: 'sales', icon: Store, module: 'sales_orders' },
       { href: '/returns', labelKey: 'returns', icon: Undo2, module: 'sales_orders' },
       { href: '/pos', labelKey: 'pos', icon: ShoppingCart, module: 'pos' },
+    ],
+  },
+  {
+    labelKey: 'human_resources',
+    items: [
+      { href: '/hr', labelKey: 'hr', icon: HeartHandshake, module: 'hr' },
+      { href: '/hr/employees', labelKey: 'hr_employees', icon: UsersRound, module: 'hr' },
+      { href: '/hr/org', labelKey: 'hr_org', icon: Building2, module: 'hr' },
+      { href: '/hr/attendance', labelKey: 'hr_attendance', icon: CalendarClock, module: 'hr' },
+      { href: '/hr/leave', labelKey: 'hr_leave', icon: Plane, module: 'hr' },
+      { href: '/hr/payroll', labelKey: 'hr_payroll', icon: Banknote, module: 'hr' },
     ],
   },
   {

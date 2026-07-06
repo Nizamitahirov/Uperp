@@ -320,6 +320,81 @@ service cloud.firestore {
       allow delete: if can('production_orders','delete',['director']);
     }
 
+    // ── İnsan Resursları & Əmək Haqqı ───────────────────────
+    match /departments/{docId} {
+      allow read: if signedIn();
+      allow write: if can('hr','update',['director','hr_manager']);
+    }
+    match /positions/{docId} {
+      allow read: if signedIn();
+      allow write: if can('hr','update',['director','hr_manager']);
+    }
+    match /employees/{docId} {
+      // HR idarəçiləri hamısını; işçi öz qeydini (ESS)
+      allow read: if can('hr','read',['director','accountant','hr_manager'])
+                  || (signedIn() && resource.data.userId == request.auth.uid);
+      allow create: if can('hr','create',['director','hr_manager']);
+      allow update: if can('hr','update',['director','hr_manager']);
+      allow delete: if can('hr','delete',['director','hr_manager']);
+    }
+    match /employee_documents/{docId} {
+      allow read: if can('hr','read',['director','accountant','hr_manager']);
+      allow write: if can('hr','update',['director','hr_manager']);
+    }
+    match /shifts/{docId} {
+      allow read: if signedIn();
+      allow write: if can('hr','update',['director','hr_manager']);
+    }
+    match /schedules/{docId} {
+      allow read: if signedIn();
+      allow write: if can('hr','update',['director','hr_manager']);
+    }
+    match /attendance/{docId} {
+      allow read: if can('hr','read',['director','accountant','hr_manager','production'])
+                  || (signedIn() && resource.data.userId == request.auth.uid);
+      allow write: if can('hr','update',['director','hr_manager','production']);
+    }
+    match /leave_types/{docId} {
+      allow read: if signedIn();
+      allow write: if can('hr','update',['director','hr_manager']);
+    }
+    match /leave_requests/{docId} {
+      // İşçi öz sorğusunu görür/yaradır; HR idarə edir
+      allow read: if can('hr','read',['director','hr_manager'])
+                  || (signedIn() && resource.data.userId == request.auth.uid);
+      allow create: if signedIn();
+      allow update: if can('hr','update',['director','hr_manager'])
+                    || (signedIn() && resource.data.userId == request.auth.uid && request.resource.data.status == 'cancelled');
+      allow delete: if can('hr','delete',['director','hr_manager']);
+    }
+    match /hr_requests/{docId} {
+      allow read: if can('hr','read',['director','hr_manager'])
+                  || (signedIn() && resource.data.userId == request.auth.uid);
+      allow create: if signedIn();
+      allow update: if can('hr','update',['director','hr_manager'])
+                    || (signedIn() && resource.data.userId == request.auth.uid);
+      allow delete: if can('hr','delete',['director','hr_manager']);
+    }
+    match /payroll_runs/{docId} {
+      allow read: if can('hr','read',['director','accountant','hr_manager']);
+      allow write: if can('hr','update',['director','hr_manager']);
+    }
+    match /payslips/{docId} {
+      allow read: if can('hr','read',['director','accountant','hr_manager'])
+                  || (signedIn() && resource.data.userId == request.auth.uid);
+      allow write: if can('hr','update',['director','hr_manager']);
+    }
+    match /salary_advances/{docId} {
+      allow read: if can('hr','read',['director','accountant','hr_manager'])
+                  || (signedIn() && resource.data.userId == request.auth.uid);
+      allow create: if signedIn();
+      allow update, delete: if can('hr','update',['director','hr_manager']);
+    }
+    match /settlements/{docId} {
+      allow read: if can('hr','read',['director','accountant','hr_manager']);
+      allow write: if can('hr','update',['director','hr_manager']);
+    }
+
     // Default: qadağa
     match /{document=**} {
       allow read, write: if false;

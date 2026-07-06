@@ -4,9 +4,9 @@ import { useMemo } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { UsersRound, Building2, CalendarClock, Plane, Banknote, ArrowUpRight, UserCheck, UserX } from 'lucide-react';
+import { UsersRound, Building2, CalendarClock, Plane, Banknote, ArrowUpRight, UserCheck, UserX, AlertTriangle } from 'lucide-react';
 import { listDocs } from '@/lib/firebase/firestore';
-import type { Department, Employee } from '@/types';
+import type { Department, Employee, LeaveRequest } from '@/types';
 import { CHART_COLORS } from '@/components/charts/palette';
 import { formatCurrency } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
@@ -19,6 +19,15 @@ const STATUS_LABEL: Record<string, string> = { active: 'Aktiv', probation: 'Sın
 export default function HrDashboardPage() {
   const { data: employees = [], isLoading } = useQuery({ queryKey: ['employees'], queryFn: () => listDocs<Employee>('employees') });
   const { data: departments = [] } = useQuery({ queryKey: ['departments'], queryFn: () => listDocs<Department>('departments') });
+  const { data: leaves = [] } = useQuery({ queryKey: ['leave_requests'], queryFn: () => listDocs<LeaveRequest>('leave_requests') });
+
+  const alerts = useMemo(() => {
+    const soon = Date.now() + 30 * 86_400_000;
+    const ms = (t: unknown) => (t as { toMillis?: () => number })?.toMillis?.();
+    const expiring = employees.filter((e) => e.status !== 'terminated' && e.contractEndDate && (ms(e.contractEndDate) ?? Infinity) <= soon).length;
+    const pendingLeave = leaves.filter((l) => l.status === 'pending').length;
+    return { expiring, pendingLeave };
+  }, [employees, leaves]);
 
   const m = useMemo(() => {
     const active = employees.filter((e) => e.status === 'active' || e.status === 'probation');
@@ -48,6 +57,14 @@ export default function HrDashboardPage() {
         <Kpi icon={Plane} tint="bg-amber-500/10 text-amber-600" value={String(m.onLeave)} label="Məzuniyyətdə" />
         <Kpi icon={Banknote} tint="bg-sky-500/10 text-sky-600" value={formatCurrency(m.payrollCost, 'AZN')} label="Aylıq maaş fondu" />
       </div>
+
+      {/* Diqqət tələb edən */}
+      {(alerts.pendingLeave > 0 || alerts.expiring > 0) && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {alerts.pendingLeave > 0 && <Link href="/hr/leave" className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-400"><Plane className="h-3.5 w-3.5" /> {alerts.pendingLeave} təsdiq gözləyən məzuniyyət</Link>}
+          {alerts.expiring > 0 && <Link href="/hr/employees" className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-700 dark:text-rose-400"><AlertTriangle className="h-3.5 w-3.5" /> {alerts.expiring} müqavilə 30 gün ərzində bitir</Link>}
+        </div>
+      )}
 
       {/* Sürətli keçidlər */}
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">

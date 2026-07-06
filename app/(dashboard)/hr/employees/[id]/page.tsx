@@ -4,9 +4,9 @@ import { useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { orderBy, where } from 'firebase/firestore';
-import { ArrowLeft, Pencil, Mail, Phone, MapPin, Calendar, Building2, Briefcase, Wallet, FileText, Upload, Trash2, Link2, Loader2, Plane } from 'lucide-react';
+import { ArrowLeft, Pencil, Mail, Phone, MapPin, Calendar, Building2, Briefcase, Wallet, FileText, Upload, Trash2, Link2, Loader2, Plane, UserX } from 'lucide-react';
 import { getDocById, listDocs, createDoc, deleteDocById } from '@/lib/firebase/firestore';
-import { updateEmployee, linkEmployeeUser } from '@/lib/firebase/hr';
+import { updateEmployee, linkEmployeeUser, terminateEmployee, previewSettlement, type SettlementPreview } from '@/lib/firebase/hr';
 import { uploadFile } from '@/lib/firebase/storage';
 import { useAuth } from '@/components/providers/auth-provider';
 import type { AppUser, Department, Employee, EmployeeDocument, Position } from '@/types';
@@ -17,7 +17,11 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/toast';
+import { formatCurrency as fc } from '@/lib/utils/format';
 import { EmployeeFormDialog } from '../employee-form-dialog';
 import { EMP_STATUS_META, CONTRACT_LABELS, PAY_LABELS } from '../constants';
 
@@ -32,6 +36,10 @@ export default function EmployeeDetailPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [termOpen, setTermOpen] = useState(false);
+  const [term, setTerm] = useState({ terminationDate: new Date().toISOString().slice(0, 10), reason: '', note: '' });
+  const [preview, setPreview] = useState<SettlementPreview | null>(null);
+  const [terminating, setTerminating] = useState(false);
 
   const { data: emp, isLoading } = useQuery({ queryKey: ['employees', id], queryFn: () => getDocById<Employee>('employees', id) });
   const { data: departments = [] } = useQuery({ queryKey: ['departments'], queryFn: () => listDocs<Department>('departments') });
@@ -64,6 +72,17 @@ export default function EmployeeDetailPage() {
     catch { toast.error('Alınmadı'); }
   }
 
+  async function openTerm() { if (!emp) return; try { setPreview(await previewSettlement(emp)); } catch { setPreview(null); } setTermOpen(true); }
+  async function doTerminate() {
+    if (!emp) return;
+    setTerminating(true);
+    try {
+      await terminateEmployee(emp, term, actor);
+      toast.success('İşçi işdən çıxarıldı — yekun haqq-hesab yaradıldı');
+      setTermOpen(false); qc.invalidateQueries({ queryKey: ['employees', id] }); qc.invalidateQueries({ queryKey: ['employees'] });
+    } catch (e) { toast.error('Alınmadı', e instanceof Error ? e.message : undefined); } finally { setTerminating(false); }
+  }
+
   if (isLoading) return <Skeleton className="h-64 w-full" />;
   if (!emp) return <div><Button variant="ghost" onClick={() => router.push('/hr/employees')}><ArrowLeft className="h-4 w-4" /> Geri</Button><p className="mt-4 text-muted-foreground">İşçi tapılmadı.</p></div>;
 
@@ -85,8 +104,20 @@ export default function EmployeeDetailPage() {
           <div className="flex items-center gap-2"><h1 className="text-2xl font-bold tracking-tight">{emp.fullName}</h1><Badge variant={st.variant}>{st.label}</Badge></div>
           <p className="text-sm text-muted-foreground">{emp.positionTitle ?? '—'} · {emp.departmentName ?? '—'} · {emp.employeeNo}</p>
         </div>
-        {canManage && <Button onClick={() => setFormOpen(true)}><Pencil className="h-4 w-4" /> Düzəlt</Button>}
+        {canManage && (
+          <div className="flex gap-2">
+            {emp.status !== 'terminated' && <Button variant="outline" className="text-danger" onClick={openTerm}><UserX className="h-4 w-4" /> İşdən çıxar</Button>}
+            <Button onClick={() => setFormOpen(true)}><Pencil className="h-4 w-4" /> Düzəlt</Button>
+          </div>
+        )}
       </div>
+
+      {emp.status === 'terminated' && (
+        <div className="mb-4 flex flex-wrap items-center gap-4 rounded-2xl border border-rose-500/30 bg-rose-500/5 p-4 text-sm">
+          <UserX className="h-5 w-5 text-rose-600" />
+          <span>İşdən çıxıb{emp.terminationDate ? ` · ${formatDate(ms(emp.terminationDate))}` : ''}{emp.terminationReason ? ` · ${emp.terminationReason}` : ''}</span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Şəxsi + iş */}
@@ -164,6 +195,28 @@ export default function EmployeeDetailPage() {
       </div>
 
       <EmployeeFormDialog open={formOpen} onOpenChange={setFormOpen} initial={emp} departments={departments} positions={positions} employees={employees} onSubmit={handleSubmit} submitting={submitting} />
+
+      <Dialog open={termOpen} onOpenChange={setTermOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>İşdən çıxarma və yekun haqq-hesab</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5"><Label>Çıxma tarixi *</Label><Input type="date" value={term.terminationDate} onChange={(e) => setTerm({ ...term, terminationDate: e.target.value })} /></div>
+              <div className="space-y-1.5"><Label>Səbəb</Label><Input value={term.reason} onChange={(e) => setTerm({ ...term, reason: e.target.value })} placeholder="İstefa / ixtisar..." /></div>
+            </div>
+            {preview && (
+              <div className="space-y-1.5 rounded-xl border border-border bg-secondary/30 p-3 text-sm">
+                <div className="flex justify-between"><span className="text-muted-foreground">İstifadə olunmamış məzuniyyət</span><span>{preview.unusedLeaveDays} gün × {fc(preview.dailyRate, 'AZN')}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Məzuniyyət kompensasiyası</span><span className="text-emerald-600">{fc(preview.leaveEncashment, 'AZN')}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Açıq avanslar</span><span className="text-rose-600">−{fc(preview.deductions, 'AZN')}</span></div>
+                <div className="flex justify-between border-t pt-1.5 font-bold"><span>Yekun ödəniş</span><span className="text-primary">{fc(preview.netSettlement, 'AZN')}</span></div>
+              </div>
+            )}
+            <div className="space-y-1.5"><Label>Qeyd</Label><Input value={term.note} onChange={(e) => setTerm({ ...term, note: e.target.value })} /></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setTermOpen(false)}>Ləğv</Button><Button className="bg-rose-600 hover:bg-rose-700" onClick={doTerminate} disabled={terminating}>{terminating && <Loader2 className="h-4 w-4 animate-spin" />} İşdən çıxar</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

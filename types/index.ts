@@ -979,6 +979,8 @@ export interface Employee {
   contractType: ContractType;
   contractEndDate?: Timestamp | null;
   status: EmployeeStatus;
+  terminationDate?: Timestamp | Date | null;
+  terminationReason?: string;
   workLocation?: string;
   // Əmək haqqı strukturu
   payType: PayType;
@@ -1121,5 +1123,23 @@ export interface SalaryAdvance {
   status: 'open' | 'deducted';
   payslipId?: string;
   note?: string;
+  createdAt?: Timestamp | null;
+}
+
+export interface Settlement {
+  id: string;
+  employeeId: string;
+  employeeName?: string;
+  terminationDate?: Timestamp | Date | null;
+  reason?: string;
+  payType?: string;
+  unusedLeaveDays: number;
+  dailyRate: number;
+  leaveEncashment: number;
+  deductions: number;
+  netSettlement: number;
+  note?: string;
+  createdBy?: string;
+  createdByName?: string;
   createdAt?: Timestamp | null;
 }

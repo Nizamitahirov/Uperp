@@ -3,11 +3,12 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { where, orderBy } from 'firebase/firestore';
-import { Plane, Plus, Loader2, CalendarClock, Briefcase, Wallet, HeartHandshake } from 'lucide-react';
+import { Plane, Plus, Loader2, CalendarClock, Briefcase, Wallet, HeartHandshake, FileText } from 'lucide-react';
 import { listDocs } from '@/lib/firebase/firestore';
 import { createLeaveRequest, LEAVE_TYPES } from '@/lib/firebase/leave';
+import { printDocument } from '@/lib/utils/print';
 import { useAuth } from '@/components/providers/auth-provider';
-import type { Attendance, Employee, LeaveRequest } from '@/types';
+import type { Attendance, Employee, LeaveRequest, Payslip } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
 import { EmptyState } from '@/components/shared/empty-state';
@@ -41,8 +42,16 @@ export default function MyHrPage() {
 
   const { data: leaves = [] } = useQuery({ queryKey: ['my-leaves', emp?.id], queryFn: () => listDocs<LeaveRequest>('leave_requests', [where('employeeId', '==', emp!.id), orderBy('createdAt', 'desc')]), enabled: !!emp?.id });
   const { data: attendance = [] } = useQuery({ queryKey: ['my-attendance', emp?.id], queryFn: () => listDocs<Attendance>('attendance', [where('employeeId', '==', emp!.id), orderBy('dateKey', 'desc')]), enabled: !!emp?.id });
+  const { data: payslips = [] } = useQuery({ queryKey: ['my-payslips', uid], queryFn: () => listDocs<Payslip>('payslips', [where('userId', '==', uid), orderBy('period', 'desc')]), enabled: !!uid });
 
   const ms = (t: unknown) => (t as { toMillis?: () => number })?.toMillis?.();
+
+  function printPayslip(p: Payslip) {
+    const c = (n: number) => formatCurrency(n, 'AZN');
+    const row = (l: string, v: number, neg = false) => `<tr><td>${l}</td><td class="right">${neg ? '−' : ''}${c(Math.abs(v))}</td></tr>`;
+    const body = `<h1>Əmək haqqı vərəqəsi</h1><p class="muted">${p.employeeName ?? ''} · ${p.period}</p><table><thead><tr><th>Hesablama</th><th class="right">Məbləğ</th></tr></thead><tbody>${row('Baza', p.base)}${p.overtime ? row('Əlavə iş', p.overtime) : ''}${p.pieceRatePay ? row('Ədədi', p.pieceRatePay) : ''}${p.allowances ? row('Əlavələr', p.allowances) : ''}<tr style="font-weight:700"><td>Brüt</td><td class="right">${c(p.gross)}</td></tr>${row('Gəlir vergisi', p.incomeTax, true)}${row('Sosial', p.socialEmployee, true)}${row('İşsizlik', p.unemploymentEmployee, true)}${row('Tibbi', p.medicalEmployee, true)}${p.advances ? row('Avans', p.advances, true) : ''}<tr style="font-weight:800;border-top:2px solid #5B5BF5"><td>NET</td><td class="right">${c(p.net)}</td></tr></tbody></table>`;
+    printDocument('Payslip', body, { docType: 'PAYSLIP', docNumber: p.period });
+  }
   const recentAttendance = useMemo(() => attendance.slice(0, 10), [attendance]);
 
   async function submit() {
@@ -124,6 +133,25 @@ export default function MyHrPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Payslip-lərim */}
+      <Card className="rounded-card mt-4">
+        <CardHeader><CardTitle className="flex items-center gap-2 text-base"><FileText className="h-4 w-4 text-primary" /> Əmək haqqı vərəqələrim</CardTitle></CardHeader>
+        <CardContent className="p-0">
+          {payslips.length === 0 ? <EmptyState title="Payslip yoxdur" description="Əmək haqqı hesablandıqda burada görünəcək" /> : (
+            <div className="divide-y divide-border/60">
+              {payslips.slice(0, 12).map((p) => (
+                <div key={p.id} className="flex items-center gap-3 px-4 py-2.5">
+                  <span className="font-mono text-sm">{p.period}</span>
+                  <span className="ml-auto text-sm text-muted-foreground">Brüt {formatCurrency(p.gross, 'AZN')}</span>
+                  <span className="text-sm font-bold text-primary">Net {formatCurrency(p.net, 'AZN')}</span>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => printPayslip(p)} title="PDF"><FileText className="h-4 w-4" /></Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">

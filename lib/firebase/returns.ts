@@ -21,19 +21,8 @@ export async function createSalesReturn(
   const db = getDb();
   const returnNumber = await nextNumber('RET');
 
-  if (params.restockable) {
-    for (const item of order.items) {
-      const fgRef = doc(db, 'finished_goods', item.finishedGoodId);
-      await runTransaction(db, async (tx) => {
-        const snap = await tx.get(fgRef);
-        if (!snap.exists()) return;
-        const d = snap.data() as { currentStock?: number; reservedStock?: number };
-        const newStock = (d.currentStock ?? 0) + item.quantity;
-        tx.update(fgRef, { currentStock: newStock, availableStock: newStock - (d.reservedStock ?? 0), updatedAt: serverTimestamp() });
-      });
-    }
-  }
-
+  // Qaytarma "gözləyir" statusunda yaradılır — geri-stok və sifariş statusu
+  // yalnız RMA tamamlananda tətbiq olunur (setReturnStatus).
   const ref = await addDoc(collection(db, 'sales_returns'), {
     returnNumber,
     originalSaleId: order.id,
@@ -44,18 +33,42 @@ export async function createSalesReturn(
     reason: params.reason,
     returnType: params.returnType,
     refundAmount: order.totalAmount,
-    status: 'completed',
+    status: 'pending',
     restockable: params.restockable,
     createdAt: serverTimestamp(),
   });
 
-  await updateDoc(doc(db, 'sales_orders', order.id), { status: 'returned', updatedAt: serverTimestamp() });
-  await logAudit({ userId: actor.uid, username: actor.username, action: 'UPDATE', entityType: 'SalesReturn', entityId: ref.id });
+  await logAudit({ userId: actor.uid, username: actor.username, action: 'CREATE', entityType: 'SalesReturn', entityId: ref.id });
   return ref.id;
 }
 
-/** RMA statusunu dəyişir (pending → approved → completed) */
-export async function setReturnStatus(id: string, status: SalesReturn['status'], actor: Actor): Promise<void> {
-  await updateDoc(doc(getDb(), 'sales_returns', id), { status, updatedAt: serverTimestamp() });
-  await logAudit({ userId: actor.uid, username: actor.username, action: 'UPDATE', entityType: 'SalesReturn', entityId: id });
+/**
+ * RMA statusunu dəyişir (pending → approved → completed).
+ * "completed"-də: restockable olarsa hazır məhsul stoka qayıdır və orijinal
+ * sifariş "returned" işarələnir.
+ */
+export async function setReturnStatus(ret: SalesReturn, status: SalesReturn['status'], actor: Actor): Promise<void> {
+  const db = getDb();
+
+  if (status === 'completed' && ret.status !== 'completed') {
+    if (ret.restockable) {
+      for (const item of ret.items) {
+        if (!item.finishedGoodId) continue;
+        const fgRef = doc(db, 'finished_goods', item.finishedGoodId);
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(fgRef);
+          if (!snap.exists()) return;
+          const d = snap.data() as { currentStock?: number; reservedStock?: number };
+          const newStock = (d.currentStock ?? 0) + item.quantity;
+          tx.update(fgRef, { currentStock: newStock, availableStock: newStock - (d.reservedStock ?? 0), updatedAt: serverTimestamp() });
+        });
+      }
+    }
+    if (ret.originalSaleId) {
+      await updateDoc(doc(db, 'sales_orders', ret.originalSaleId), { status: 'returned', updatedAt: serverTimestamp() }).catch(() => {});
+    }
+  }
+
+  await updateDoc(doc(db, 'sales_returns', ret.id), { status, updatedAt: serverTimestamp() });
+  await logAudit({ userId: actor.uid, username: actor.username, action: 'UPDATE', entityType: 'SalesReturn', entityId: ret.id });
 }

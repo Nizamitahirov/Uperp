@@ -86,7 +86,7 @@ export default function SalesOrderDetailPage() {
             {canUpdate && order.status === 'new' && <Button onClick={() => run(() => confirmSalesOrder(order, actor), 'Təsdiqləndi və rezerv edildi')} disabled={working}>{working ? <Loader2 className="animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Təsdiqlə (rezerv)</Button>}
             {canUpdate && ['confirmed', 'preparing', 'shipped'].includes(order.status) && <Button onClick={() => run(() => deliverSalesOrder(order, actor), 'Çatdırıldı, faktura yaradıldı')} disabled={working}><Truck className="h-4 w-4" /> Çatdır</Button>}
             {canUpdate && !['delivered', 'cancelled', 'returned'].includes(order.status) && <Button variant="outline" className="text-danger" onClick={() => run(() => cancelSalesOrder(order, actor), 'Ləğv edildi')} disabled={working}><XCircle className="h-4 w-4" /> Ləğv et</Button>}
-            {canUpdate && order.status === 'delivered' && <Button variant="outline" onClick={() => run(() => createSalesReturn(order, { reason: 'customer_request', returnType: 'refund', restockable: true }, actor).then(() => undefined), 'Qaytarma qeyd edildi, stoka qayıtdı')} disabled={working}><XCircle className="h-4 w-4" /> Qaytarma</Button>}
+            {canUpdate && order.status === 'delivered' && <Button variant="outline" onClick={() => run(() => createSalesReturn(order, { reason: 'customer_request', returnType: 'refund', restockable: true }, actor).then(() => undefined), 'Qaytarma (RMA) yaradıldı — Qaytarmalar səhifəsində tamamlayın')} disabled={working}><XCircle className="h-4 w-4" /> Qaytarma</Button>}
           </div>
         }
       />

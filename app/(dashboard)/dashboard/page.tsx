@@ -85,7 +85,12 @@ export default function DashboardPage() {
     const activeOrders = data.sales.filter((s) => ['new', 'confirmed', 'preparing', 'shipped'].includes(s.status)).length;
     const monthProduction = data.production.filter((p) => ms(p.createdAt) >= monthStart).reduce((a, p) => a + (p.producedQuantity ?? 0), 0);
     const criticalMaterials = data.materials.filter((x) => ['critical', 'out'].includes(getStockStatus(x)));
-    const netProfit = monthSales * 0.3;
+    // Real ümumi mənfəət — bu ayın COGS-i (hazır məhsul mayası) əsasında
+    const fgCost = new Map(data.finished.map((f) => [f.variantSku, f.unitCost ?? 0]));
+    const monthCOGS = delivered
+      .filter((s) => (ms(s.date) || ms(s.createdAt)) >= monthStart)
+      .reduce((a, s) => a + (s.items ?? []).reduce((x, it) => x + it.quantity * (fgCost.get(it.variantSku) ?? 0), 0), 0);
+    const grossProfit = monthSales - monthCOGS;
 
     const activeProduction = data.production.filter((p) => ACTIVE_PROD.includes(p.status));
     const inWashing = data.washing.filter((w) => ['sent', 'in_process'].includes(w.status));
@@ -111,7 +116,7 @@ export default function DashboardPage() {
 
     return {
       todaySales, monthSales, arTotal, apTotal, inventoryValue: rawValue + fgValue, rawValue, fgValue,
-      activeOrders, monthProduction, criticalMaterials, netProfit, activeProduction, inWashing,
+      activeOrders, monthProduction, criticalMaterials, grossProfit, activeProduction, inWashing,
       openPOs, pendingGRN, todayDeliveries, fgVariants, dueReceivables, dueSum, arAging, apAging,
       topCustomers, recentOrders, customerCount: data.customers.length,
     };
@@ -389,9 +394,9 @@ export default function DashboardPage() {
 
               {/* Radial gauge: mənfəət marjası */}
               <GaugeCard
-                title="Mənfəət marjası"
-                percent={m.monthSales > 0 ? (m.netProfit / m.monthSales) * 100 : 0}
-                label="bu ay (təxmini)"
+                title="Ümumi marja (bu ay)"
+                percent={m.monthSales > 0 ? (m.grossProfit / m.monthSales) * 100 : 0}
+                label="gəlir − COGS"
                 color={PRIMARY}
                 sub={[
                   { label: 'Aktiv sifariş', value: String(m.activeOrders) },
@@ -504,7 +509,7 @@ export default function DashboardPage() {
 interface Metrics {
   todaySales: number; monthSales: number; arTotal: number; apTotal: number; inventoryValue: number;
   rawValue: number; fgValue: number; activeOrders: number; monthProduction: number;
-  criticalMaterials: RawMaterial[]; netProfit: number; activeProduction: ProductionOrder[];
+  criticalMaterials: RawMaterial[]; grossProfit: number; activeProduction: ProductionOrder[];
   inWashing: WashingOrder[]; openPOs: PurchaseOrder[]; pendingGRN: PurchaseOrder[];
   todayDeliveries: number; fgVariants: number; dueReceivables: Receivable[]; dueSum: number;
   arAging: ReturnType<typeof buildAging>; apAging: ReturnType<typeof buildAging>;

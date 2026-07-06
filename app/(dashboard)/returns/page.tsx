@@ -74,10 +74,11 @@ export default function ReturnsPage() {
     const next = r.status === 'pending' ? 'approved' : 'completed';
     setWorking(r.id);
     try {
-      await setReturnStatus(r.id, next, { uid: profile?.uid ?? '', username: profile?.username ?? '' });
-      toast.success(next === 'approved' ? 'Təsdiqləndi' : 'Tamamlandı');
+      await setReturnStatus(r, next, { uid: profile?.uid ?? '', username: profile?.username ?? '' });
+      toast.success(next === 'approved' ? 'Təsdiqləndi' : 'Tamamlandı — geri-stok tətbiq olundu');
       qc.invalidateQueries({ queryKey: ['sales_returns'] });
-    } catch { toast.error('Alınmadı'); } finally { setWorking(''); }
+      qc.invalidateQueries({ queryKey: ['finished_goods'] });
+    } catch (e) { toast.error('Alınmadı', e instanceof Error ? e.message : undefined); } finally { setWorking(''); }
   }
 
   return (

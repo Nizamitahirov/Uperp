@@ -182,12 +182,47 @@ export const PAGE_GUIDE: Record<string, PageGuideMeta> = {
     prev: 'Workflow trigger (PO, xərc və s.)', next: 'Əməliyyatın davamı',
     affects: 'Təsdiq biznes əməliyyatının gedişatını müəyyən edir.',
   },
+  '/settings/workflows': {
+    title: 'Workflow Management', collection: 'workflows',
+    purpose: 'Hadisələrə (sifariş, təsdiq, stok) avtomatik reaksiyaların qurulması (Power Automate üslubu).',
+    how: ['Trigger seç (nə vaxt işə düşsün)', 'Şərt və addımları əlavə et', 'Aktivləşdir'],
+    prev: 'Tənzimləmələr', next: 'Təsdiqlər və tapşırıqlar (icra)',
+    affects: 'Bildiriş, təsdiq, status və email avtomatlaşmasını idarə edir.',
+  },
   '/settings': {
     title: 'Tənzimləmələr', collection: 'settings',
     purpose: 'Şirkət, valyuta, ƏDV, maya parametrləri və avtomatlaşdırma.',
-    how: ['Şirkət məlumatını doldur', 'Maya/ƏDV təyin et', 'Workflow-ları qur'],
+    how: ['Şirkət məlumatını doldur', 'Maya/ƏDV və aylıq satış hədəfini təyin et', 'Workflow-ları qur'],
     prev: '—', next: 'Bütün modulların düzgün işləməsi',
     affects: 'Hesablamalar, sənədlər və avtomatlaşdırmaya təsir edir.',
+  },
+  '/stocktake': {
+    title: 'İnventarizasiya', collection: 'raw_materials',
+    purpose: 'Fiziki sayım — sistem qalığı ilə real qalığı tutuşdurub fərqi düzəltmək.',
+    how: ['Materialları filtrlə', 'Faktiki sayılan miqdarı daxil et', 'Fərqi yoxla və "Tətbiq et"'],
+    prev: 'Material anbarı', next: 'Düzəldilmiş stok → planlaşdırma/istehsal',
+    affects: 'Stok qalığını və maya dəyərini düzəldir (ADJ_INVENTORY hərəkəti).',
+  },
+  '/warehouses': {
+    title: 'Anbarlar', collection: 'warehouses',
+    purpose: 'Çox-anbar idarəetməsi və anbarlararası material transferi.',
+    how: ['Anbar əlavə et (növ, ünvan)', 'Transfer üçün material və anbarları seç', 'Transfer et'],
+    prev: 'Material anbarı', next: 'İstehsal/anbar əməliyyatları',
+    affects: 'Fiziki yerdəyişməni sənədləşdirir (stok hərəkəti). Ümumi qalıq dəyişmir.',
+  },
+  '/returns': {
+    title: 'Qaytarmalar (RMA)', collection: 'sales_returns',
+    purpose: 'Satış qaytarmalarının səbəb, tip və status üzrə idarəsi.',
+    how: ['Satış detalından qaytarma yarat', 'RMA statusunu irəlilət', 'Geri-stok halını izlə'],
+    prev: 'Satış sifarişi (çatdırılmış)', next: 'Geri ödəniş / dəyişmə və stok',
+    affects: 'Hazır məhsul stokuna (geri-stok) və maliyyəyə təsir edə bilər.',
+  },
+  '/profile': {
+    title: 'Profilim',
+    purpose: 'Şəxsi məlumatlar, profil şəkli və hesab tənzimləmələri.',
+    how: ['Profil şəklini yüklə', 'Ad/telefonu redaktə et', 'Yadda saxla'],
+    prev: '—', next: 'Sistem tənzimləmələri',
+    affects: 'Profil şəkli dashboard və yuxarı paneldə görünür.',
   },
 };
 

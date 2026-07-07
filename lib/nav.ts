@@ -25,6 +25,7 @@ import {
   Plane,
   Banknote,
   HeartHandshake,
+  Briefcase,
   type LucideIcon,
 } from 'lucide-react';
 import type { ModuleKey } from '@/lib/rbac/permissions';
@@ -92,6 +93,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/hr/org', labelKey: 'hr_org', icon: Building2, module: 'hr' },
       { href: '/hr/attendance', labelKey: 'hr_attendance', icon: CalendarClock, module: 'hr' },
       { href: '/hr/leave', labelKey: 'hr_leave', icon: Plane, module: 'hr' },
+      { href: '/hr/recruitment', labelKey: 'hr_recruitment', icon: Briefcase, module: 'hr' },
       { href: '/hr/payroll', labelKey: 'hr_payroll', icon: Banknote, module: 'hr' },
     ],
   },

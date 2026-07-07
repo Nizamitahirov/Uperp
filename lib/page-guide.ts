@@ -245,6 +245,13 @@ export const PAGE_GUIDE: Record<string, PageGuideMeta> = {
     prev: 'İşçi kartotekası', next: 'Payroll (ödənişli/ödənişsiz)',
     affects: 'Davamiyyət və əmək haqqına təsir edir.',
   },
+  '/hr/recruitment': {
+    title: 'İşə qəbul', collection: 'job_openings',
+    purpose: 'Vakansiyalar və namizəd pipeline-ı (müraciət → müsahibə → təklif → işə qəbul).',
+    how: ['Vakansiya aç', 'Namizədləri əlavə et və mərhələ üzrə irəlilət', 'Uyğun namizədi işçi kartına çevir'],
+    prev: 'Struktur (şöbə/vəzifə)', next: 'İşçi kartotekası',
+    affects: 'İşə qəbul namizədi işçi qeydinə çevirir və vakansiyanı azaldır.',
+  },
   '/hr/payroll': {
     title: 'Əmək haqqı', collection: 'payroll_runs',
     purpose: 'Aylıq əmək haqqı hesablanması (brüt→net), payslip və maliyyəyə post.',

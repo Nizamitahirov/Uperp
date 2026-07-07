@@ -1,25 +1,54 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { orderBy } from 'firebase/firestore';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { UsersRound, Building2, CalendarClock, Plane, Banknote, ArrowUpRight, UserCheck, UserX, AlertTriangle } from 'lucide-react';
+import { UsersRound, Building2, CalendarClock, Plane, Banknote, Briefcase, ArrowUpRight, UserCheck, UserX, AlertTriangle, Inbox, Loader2 } from 'lucide-react';
 import { listDocs } from '@/lib/firebase/firestore';
-import type { Department, Employee, LeaveRequest } from '@/types';
+import { setHrRequestStatus, HR_REQUEST_TYPE_MAP, HR_REQUEST_STATUS_META } from '@/lib/firebase/hr-requests';
+import { useAuth } from '@/components/providers/auth-provider';
+import type { Department, Employee, HrRequest, LeaveRequest } from '@/types';
 import { CHART_COLORS } from '@/components/charts/palette';
 import { formatCurrency } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils/cn';
 
 const STATUS_LABEL: Record<string, string> = { active: 'Aktiv', probation: 'Sınaq', on_leave: 'Məzuniyyətdə', suspended: 'Dayandırılmış', terminated: 'İşdən çıxmış' };
 
 export default function HrDashboardPage() {
+  const qc = useQueryClient();
+  const { profile, can } = useAuth();
+  const canManage = can('hr', 'update');
+  const actor = { uid: profile?.uid ?? '', username: profile?.username ?? '' };
+  const [reqSel, setReqSel] = useState<HrRequest | null>(null);
+  const [response, setResponse] = useState('');
+  const [reqWorking, setReqWorking] = useState(false);
+
   const { data: employees = [], isLoading } = useQuery({ queryKey: ['employees'], queryFn: () => listDocs<Employee>('employees') });
   const { data: departments = [] } = useQuery({ queryKey: ['departments'], queryFn: () => listDocs<Department>('departments') });
   const { data: leaves = [] } = useQuery({ queryKey: ['leave_requests'], queryFn: () => listDocs<LeaveRequest>('leave_requests') });
+  const { data: hrRequests = [] } = useQuery({ queryKey: ['hr_requests'], queryFn: () => listDocs<HrRequest>('hr_requests', [orderBy('createdAt', 'desc')]), enabled: canManage });
+  const openRequests = useMemo(() => hrRequests.filter((r) => r.status === 'pending' || r.status === 'in_progress'), [hrRequests]);
+
+  async function handleRequest(status: HrRequest['status']) {
+    if (!reqSel) return;
+    setReqWorking(true);
+    try {
+      await setHrRequestStatus(reqSel, status, actor, response || undefined);
+      toast.success('Sorğu yeniləndi'); setReqSel(null); setResponse('');
+      qc.invalidateQueries({ queryKey: ['hr_requests'] });
+    } catch (e) { toast.error('Alınmadı', e instanceof Error ? e.message : undefined); } finally { setReqWorking(false); }
+  }
 
   const alerts = useMemo(() => {
     const soon = Date.now() + 30 * 86_400_000;
@@ -66,12 +95,31 @@ export default function HrDashboardPage() {
         </div>
       )}
 
+      {/* HR sorğuları (inbox) */}
+      {canManage && openRequests.length > 0 && (
+        <Card className="rounded-card mb-4">
+          <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Inbox className="h-4 w-4 text-primary" /> HR sorğuları ({openRequests.length})</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {openRequests.slice(0, 8).map((r) => {
+              const st = HR_REQUEST_STATUS_META[r.status];
+              return (
+                <button key={r.id} onClick={() => { setReqSel(r); setResponse(r.response ?? ''); }} className="flex w-full items-center gap-3 rounded-lg border border-border p-2.5 text-left transition-colors hover:bg-muted/40">
+                  <div className="min-w-0 flex-1"><p className="text-sm font-medium">{r.subject}</p><p className="text-xs text-muted-foreground">{r.employeeName} · {HR_REQUEST_TYPE_MAP.get(r.type)}</p></div>
+                  <Badge variant={st.variant}>{st.label}</Badge>
+                </button>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Sürətli keçidlər */}
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <QuickLink href="/hr/employees" icon={UsersRound} label="İşçilər" />
         <QuickLink href="/hr/org" icon={Building2} label="Struktur" />
         <QuickLink href="/hr/attendance" icon={CalendarClock} label="Davamiyyət" />
         <QuickLink href="/hr/leave" icon={Plane} label="Məzuniyyət" />
+        <QuickLink href="/hr/recruitment" icon={Briefcase} label="İşə qəbul" />
         <QuickLink href="/hr/payroll" icon={Banknote} label="Əmək haqqı" />
       </div>
 
@@ -107,6 +155,25 @@ export default function HrDashboardPage() {
           </Card>
         </div>
       )}
+
+      {/* Sorğu emalı */}
+      <Dialog open={!!reqSel} onOpenChange={(v) => { if (!v) { setReqSel(null); setResponse(''); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>{reqSel?.subject}</DialogTitle></DialogHeader>
+          {reqSel && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">{reqSel.employeeName} · {HR_REQUEST_TYPE_MAP.get(reqSel.type)}</p>
+              {reqSel.details && <p className="rounded-lg border border-border bg-muted/30 p-2.5 text-sm">{reqSel.details}</p>}
+              <div className="space-y-1.5"><Label>Cavab</Label><Input value={response} onChange={(e) => setResponse(e.target.value)} placeholder="İşçiyə cavab / qeyd" /></div>
+            </div>
+          )}
+          <DialogFooter className="flex-wrap gap-2">
+            <Button variant="outline" onClick={() => handleRequest('in_progress')} disabled={reqWorking}>İcraya götür</Button>
+            <Button variant="outline" className="text-danger" onClick={() => handleRequest('rejected')} disabled={reqWorking}>Rədd et</Button>
+            <Button onClick={() => handleRequest('done')} disabled={reqWorking}>{reqWorking && <Loader2 className="h-4 w-4 animate-spin" />} Tamamla</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

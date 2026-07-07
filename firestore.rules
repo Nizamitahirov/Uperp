@@ -271,7 +271,9 @@ service cloud.firestore {
     // ── Nömrə sayğacları (PO/GRN ardıcıllığı) ───────────────
     match /counters/{key} {
       allow read: if signedIn();
-      allow write: if hasRole(['director','supply','warehouse','accountant','sales','cashier','production']);
+      // Nömrə generatoru: sənəd yarada bilən istənilən istifadəçi sayğacı arta bilməlidir
+      // (məs. ESS işçisi məzuniyyət/HR sorğusu yaradır)
+      allow write: if signedIn();
     }
 
     // ── Bildirişlər + tənzimləmələr ─────────────────────────

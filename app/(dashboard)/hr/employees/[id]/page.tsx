@@ -4,12 +4,13 @@ import { useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { orderBy, where } from 'firebase/firestore';
-import { ArrowLeft, Pencil, Mail, Phone, MapPin, Calendar, Building2, Briefcase, Wallet, FileText, Upload, Trash2, Link2, Loader2, Plane, UserX } from 'lucide-react';
+import { ArrowLeft, Pencil, Mail, Phone, MapPin, Calendar, Building2, Briefcase, Wallet, FileText, Upload, Trash2, Link2, Loader2, Plane, UserX, TrendingUp, ShieldAlert, Plus } from 'lucide-react';
 import { getDocById, listDocs, createDoc, deleteDocById } from '@/lib/firebase/firestore';
 import { updateEmployee, linkEmployeeUser, terminateEmployee, previewSettlement, type SettlementPreview } from '@/lib/firebase/hr';
+import { reviseSalary, addDisciplinary, DISCIPLINARY_CATEGORIES, DISCIPLINARY_CATEGORY_MAP } from '@/lib/firebase/employee-records';
 import { uploadFile } from '@/lib/firebase/storage';
 import { useAuth } from '@/components/providers/auth-provider';
-import type { AppUser, Department, Employee, EmployeeDocument, LeaveTransaction, Position } from '@/types';
+import type { AppUser, Department, DisciplinaryRecord, Employee, EmployeeDocument, LeaveTransaction, Position, SalaryHistory } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,12 @@ export default function EmployeeDetailPage() {
   const [term, setTerm] = useState({ terminationDate: new Date().toISOString().slice(0, 10), reason: '', note: '' });
   const [preview, setPreview] = useState<SettlementPreview | null>(null);
   const [terminating, setTerminating] = useState(false);
+  const [salOpen, setSalOpen] = useState(false);
+  const [sal, setSal] = useState({ effectiveDate: new Date().toISOString().slice(0, 10), newSalary: '', newPayType: '', reason: '' });
+  const [savingSal, setSavingSal] = useState(false);
+  const [discOpen, setDiscOpen] = useState(false);
+  const [disc, setDisc] = useState({ date: new Date().toISOString().slice(0, 10), category: 'warning' as DisciplinaryRecord['category'], subject: '', details: '' });
+  const [savingDisc, setSavingDisc] = useState(false);
 
   const { data: emp, isLoading } = useQuery({ queryKey: ['employees', id], queryFn: () => getDocById<Employee>('employees', id) });
   const { data: departments = [] } = useQuery({ queryKey: ['departments'], queryFn: () => listDocs<Department>('departments') });
@@ -48,6 +55,8 @@ export default function EmployeeDetailPage() {
   const { data: users = [] } = useQuery({ queryKey: ['users-simple-hr'], queryFn: () => listDocs<AppUser>('users'), enabled: canManage });
   const { data: docs = [] } = useQuery({ queryKey: ['employee_documents', id], queryFn: () => listDocs<EmployeeDocument>('employee_documents', [where('employeeId', '==', id), orderBy('createdAt', 'desc')]), enabled: !!id });
   const { data: ledger = [] } = useQuery({ queryKey: ['leave_transactions', id], queryFn: () => listDocs<LeaveTransaction>('leave_transactions', [where('employeeId', '==', id), orderBy('createdAt', 'desc')]), enabled: !!id });
+  const { data: salaryHistory = [] } = useQuery({ queryKey: ['salary_history', id], queryFn: () => listDocs<SalaryHistory>('salary_history', [where('employeeId', '==', id), orderBy('createdAt', 'desc')]), enabled: !!id && canManage });
+  const { data: disciplinary = [] } = useQuery({ queryKey: ['disciplinary_records', id], queryFn: () => listDocs<DisciplinaryRecord>('disciplinary_records', [where('employeeId', '==', id), orderBy('createdAt', 'desc')]), enabled: !!id && canManage });
 
   const ms = (t: unknown) => (t as { toMillis?: () => number })?.toMillis?.();
 
@@ -82,6 +91,26 @@ export default function EmployeeDetailPage() {
       toast.success('İşçi işdən çıxarıldı — yekun haqq-hesab yaradıldı');
       setTermOpen(false); qc.invalidateQueries({ queryKey: ['employees', id] }); qc.invalidateQueries({ queryKey: ['employees'] });
     } catch (e) { toast.error('Alınmadı', e instanceof Error ? e.message : undefined); } finally { setTerminating(false); }
+  }
+
+  function openSal() { if (!emp) return; setSal({ effectiveDate: new Date().toISOString().slice(0, 10), newSalary: String(emp.baseSalary ?? ''), newPayType: emp.payType, reason: '' }); setSalOpen(true); }
+  async function doRevise() {
+    if (!emp || !sal.newSalary) { toast.error('Yeni maaş tələb olunur'); return; }
+    setSavingSal(true);
+    try {
+      await reviseSalary(emp, { effectiveDate: sal.effectiveDate, newSalary: +sal.newSalary, newPayType: (sal.newPayType || emp.payType) as Employee['payType'], reason: sal.reason || undefined }, actor);
+      toast.success('Maaş yeniləndi'); setSalOpen(false);
+      qc.invalidateQueries({ queryKey: ['employees', id] }); qc.invalidateQueries({ queryKey: ['salary_history', id] }); qc.invalidateQueries({ queryKey: ['employees'] });
+    } catch (e) { toast.error('Alınmadı', e instanceof Error ? e.message : undefined); } finally { setSavingSal(false); }
+  }
+  async function doDisc() {
+    if (!emp || !disc.subject.trim()) { toast.error('Mövzu tələb olunur'); return; }
+    setSavingDisc(true);
+    try {
+      await addDisciplinary(emp, { date: disc.date, category: disc.category, subject: disc.subject, details: disc.details || undefined }, actor);
+      toast.success('Qeyd əlavə edildi'); setDiscOpen(false); setDisc({ date: new Date().toISOString().slice(0, 10), category: 'warning', subject: '', details: '' });
+      qc.invalidateQueries({ queryKey: ['disciplinary_records', id] });
+    } catch (e) { toast.error('Alınmadı', e instanceof Error ? e.message : undefined); } finally { setSavingDisc(false); }
   }
 
   if (isLoading) return <Skeleton className="h-64 w-full" />;
@@ -170,15 +199,46 @@ export default function EmployeeDetailPage() {
         {/* Əmək haqqı + ESS */}
         <div className="space-y-4">
           <Card className="rounded-card">
-            <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Wallet className="h-4 w-4 text-primary" /> Əmək haqqı</CardTitle></CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base"><Wallet className="h-4 w-4 text-primary" /> Əmək haqqı</CardTitle>
+              {canManage && emp.status !== 'terminated' && <Button variant="outline" size="sm" onClick={openSal}><TrendingUp className="h-4 w-4" /> Dəyişiklik</Button>}
+            </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <div className="flex items-baseline justify-between"><span className="text-muted-foreground">Ödəniş tipi</span><span className="font-medium">{PAY_LABELS[emp.payType] ?? emp.payType}</span></div>
               <div className="flex items-baseline justify-between"><span className="text-muted-foreground">Baza maaş</span><span className="text-lg font-bold text-primary">{formatCurrency(emp.baseSalary ?? 0, 'AZN')}</span></div>
               {(emp.allowances ?? []).map((a, i) => <div key={i} className="flex justify-between text-xs"><span className="text-muted-foreground">+ {a.name}</span><span className="text-emerald-600">{formatCurrency(a.amount, 'AZN')}</span></div>)}
               {(emp.deductions ?? []).map((a, i) => <div key={i} className="flex justify-between text-xs"><span className="text-muted-foreground">− {a.name}</span><span className="text-rose-600">{formatCurrency(a.amount, 'AZN')}</span></div>)}
               <div className="border-t pt-2"><div className="flex justify-between text-xs"><span className="text-muted-foreground">Bank</span><span>{emp.bankName ?? '—'}</span></div><div className="flex justify-between text-xs"><span className="text-muted-foreground">IBAN</span><span className="font-mono">{emp.iban ?? '—'}</span></div></div>
+              {canManage && salaryHistory.length > 0 && (
+                <div className="border-t pt-2">
+                  <p className="mb-1.5 text-xs font-medium text-muted-foreground">Maaş tarixçəsi</p>
+                  {salaryHistory.slice(0, 6).map((h) => (
+                    <div key={h.id} className="flex items-center justify-between py-1 text-xs">
+                      <span className="text-muted-foreground">{h.effectiveDate}{h.reason ? ` · ${h.reason}` : ''}</span>
+                      <span className="font-medium">{formatCurrency(h.previousSalary, 'AZN')} → <span className="text-primary">{formatCurrency(h.newSalary, 'AZN')}</span></span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
+
+          {canManage && (
+            <Card className="rounded-card">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-base"><ShieldAlert className="h-4 w-4 text-primary" /> İntizam qeydləri</CardTitle>
+                <Button variant="outline" size="sm" onClick={() => setDiscOpen(true)}><Plus className="h-4 w-4" /> Əlavə</Button>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {disciplinary.length === 0 ? <p className="py-3 text-center text-sm text-muted-foreground">Qeyd yoxdur</p> : disciplinary.map((d) => (
+                  <div key={d.id} className="rounded-lg border border-border p-2.5">
+                    <div className="flex items-center justify-between"><span className="text-sm font-medium">{d.subject}</span><Badge variant={d.category === 'suspension' || d.category === 'reprimand' ? 'destructive' : 'secondary'}>{DISCIPLINARY_CATEGORY_MAP.get(d.category)}</Badge></div>
+                    <p className="text-xs text-muted-foreground">{d.date}{d.details ? ` · ${d.details}` : ''}</p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
           <Card className="rounded-card">
             <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Plane className="h-4 w-4 text-primary" /> Məzuniyyət tarixçəsi</CardTitle></CardHeader>
@@ -228,6 +288,49 @@ export default function EmployeeDetailPage() {
             <div className="space-y-1.5"><Label>Qeyd</Label><Input value={term.note} onChange={(e) => setTerm({ ...term, note: e.target.value })} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setTermOpen(false)}>Ləğv</Button><Button className="bg-rose-600 hover:bg-rose-700" onClick={doTerminate} disabled={terminating}>{terminating && <Loader2 className="h-4 w-4 animate-spin" />} İşdən çıxar</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Maaş dəyişikliyi */}
+      <Dialog open={salOpen} onOpenChange={setSalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Maaş dəyişikliyi</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5"><Label>Qüvvəyə minmə tarixi *</Label><Input type="date" value={sal.effectiveDate} onChange={(e) => setSal({ ...sal, effectiveDate: e.target.value })} /></div>
+              <div className="space-y-1.5"><Label>Ödəniş tipi</Label>
+                <Select value={sal.newPayType} onValueChange={(v) => setSal({ ...sal, newPayType: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="monthly">Aylıq</SelectItem><SelectItem value="daily">Günlük</SelectItem><SelectItem value="hourly">Saatlıq</SelectItem><SelectItem value="piece_rate">Ədədi</SelectItem></SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5"><Label>Yeni maaş / dərəcə (₼) *</Label><Input type="number" step="any" value={sal.newSalary} onChange={(e) => setSal({ ...sal, newSalary: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>Səbəb</Label><Input value={sal.reason} onChange={(e) => setSal({ ...sal, reason: e.target.value })} placeholder="Artım / yenidən baxış..." /></div>
+            <p className="text-xs text-muted-foreground">Cari: {formatCurrency(emp.baseSalary ?? 0, 'AZN')} ({PAY_LABELS[emp.payType] ?? emp.payType}). Dəyişiklik tarixçəyə yazılır və payroll cari məbləği götürür.</p>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setSalOpen(false)}>Ləğv</Button><Button onClick={doRevise} disabled={savingSal}>{savingSal && <Loader2 className="h-4 w-4 animate-spin" />} Yadda saxla</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* İntizam qeydi */}
+      <Dialog open={discOpen} onOpenChange={setDiscOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>İntizam qeydi</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5"><Label>Tarix *</Label><Input type="date" value={disc.date} onChange={(e) => setDisc({ ...disc, date: e.target.value })} /></div>
+              <div className="space-y-1.5"><Label>Növ</Label>
+                <Select value={disc.category} onValueChange={(v) => setDisc({ ...disc, category: v as DisciplinaryRecord['category'] })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{DISCIPLINARY_CATEGORIES.map((d) => <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5"><Label>Mövzu *</Label><Input value={disc.subject} onChange={(e) => setDisc({ ...disc, subject: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>Təfərrüat</Label><Input value={disc.details} onChange={(e) => setDisc({ ...disc, details: e.target.value })} /></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setDiscOpen(false)}>Ləğv</Button><Button onClick={doDisc} disabled={savingDisc}>{savingDisc && <Loader2 className="h-4 w-4 animate-spin" />} Əlavə et</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

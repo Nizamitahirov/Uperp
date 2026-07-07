@@ -394,6 +394,45 @@ service cloud.firestore {
       allow read: if can('hr','read',['director','accountant','hr_manager']);
       allow write: if can('hr','update',['director','hr_manager']);
     }
+    match /leave_transactions/{docId} {
+      allow read: if can('hr','read',['director','hr_manager'])
+                  || (signedIn() && resource.data.userId == request.auth.uid);
+      allow write: if can('hr','update',['director','hr_manager']);
+    }
+    match /leave_accruals/{docId} {
+      allow read: if can('hr','read',['director','hr_manager']);
+      allow write: if can('hr','update',['director','hr_manager']);
+    }
+    match /holidays/{docId} {
+      allow read: if signedIn();
+      allow write: if can('hr','update',['director','hr_manager']);
+    }
+    match /employee_loans/{docId} {
+      allow read: if can('hr','read',['director','accountant','hr_manager'])
+                  || (signedIn() && resource.data.userId == request.auth.uid);
+      allow write: if can('hr','update',['director','hr_manager']);
+    }
+    match /salary_history/{docId} {
+      allow read: if can('hr','read',['director','accountant','hr_manager']);
+      allow write: if can('hr','update',['director','hr_manager']);
+    }
+    match /disciplinary_records/{docId} {
+      allow read: if can('hr','read',['director','hr_manager'])
+                  || (signedIn() && resource.data.userId == request.auth.uid);
+      allow write: if can('hr','update',['director','hr_manager']);
+    }
+    match /bonuses/{docId} {
+      allow read: if can('hr','read',['director','accountant','hr_manager']);
+      allow write: if can('hr','update',['director','hr_manager']);
+    }
+    match /job_openings/{docId} {
+      allow read: if can('hr','read',['director','hr_manager']);
+      allow write: if can('hr','update',['director','hr_manager']);
+    }
+    match /candidates/{docId} {
+      allow read: if can('hr','read',['director','hr_manager']);
+      allow write: if can('hr','update',['director','hr_manager']);
+    }
 
     // Default: qadağa
     match /{document=**} {

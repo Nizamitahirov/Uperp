@@ -3,9 +3,10 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { orderBy } from 'firebase/firestore';
-import { Plane, Check, X, Plus, Loader2 } from 'lucide-react';
+import { Plane, Check, X, Plus, Loader2, CalendarPlus } from 'lucide-react';
 import { listDocs } from '@/lib/firebase/firestore';
-import { createLeaveRequest, setLeaveStatus, LEAVE_TYPES } from '@/lib/firebase/leave';
+import { createLeaveRequest, setLeaveStatus, accrueLeaveForPeriod, LEAVE_TYPES } from '@/lib/firebase/leave';
+import { fetchHrConfig, saveHrConfig } from '@/lib/firebase/hr-config';
 import { useAuth } from '@/components/providers/auth-provider';
 import type { Employee, LeaveRequest, LeaveStatus } from '@/types';
 import { formatDate } from '@/lib/utils/format';
@@ -42,6 +43,9 @@ export default function LeavePage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ employeeId: '', type: 'annual', startDate: '', endDate: '', reason: '' });
   const [saving, setSaving] = useState(false);
+  const [accOpen, setAccOpen] = useState(false);
+  const [acc, setAcc] = useState({ period: new Date().toISOString().slice(0, 7), method: 'monthly' as 'monthly' | 'daily' | 'none', cap: '' });
+  const [accruing, setAccruing] = useState(false);
 
   const { data: requests = [], isLoading } = useQuery({ queryKey: ['leave_requests'], queryFn: () => listDocs<LeaveRequest>('leave_requests', [orderBy('createdAt', 'desc')]) });
   const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: () => listDocs<Employee>('employees') });
@@ -60,8 +64,19 @@ export default function LeavePage() {
   const kpis = useMemo(() => ({
     pending: requests.filter((r) => r.status === 'pending').length,
     approved: requests.filter((r) => r.status === 'approved').length,
-    days: requests.filter((r) => r.status === 'approved').reduce((a, r) => a + r.days, 0),
-  }), [requests]);
+    balance: employees.filter((e) => e.status !== 'terminated').reduce((a, e) => a + (e.leaveBalance ?? e.annualLeaveEntitlement ?? 0), 0),
+  }), [requests, employees]);
+
+  async function openAccrual() { const c = await fetchHrConfig(); setAcc({ period: new Date().toISOString().slice(0, 7), method: c.leaveAccrualMethod, cap: c.leaveCarryoverCap != null ? String(c.leaveCarryoverCap) : '' }); setAccOpen(true); }
+  async function runAccrual() {
+    setAccruing(true);
+    try {
+      await saveHrConfig({ leaveAccrualMethod: acc.method, leaveCarryoverCap: acc.cap === '' ? null : +acc.cap, seniorityTiers: (await fetchHrConfig()).seniorityTiers }, actor);
+      const res = await accrueLeaveForPeriod(acc.period, actor);
+      toast.success(`Toplanma tətbiq edildi: ${res.employees} işçi, +${res.totalDays} gün`, res.skipped ? `${res.skipped} artıq mövcud/keçildi` : undefined);
+      setAccOpen(false); qc.invalidateQueries({ queryKey: ['employees'] });
+    } catch (e) { toast.error('Alınmadı', e instanceof Error ? e.message : undefined); } finally { setAccruing(false); }
+  }
 
   async function decide(r: LeaveRequest, s: LeaveStatus) {
     setWorking(r.id);
@@ -82,12 +97,17 @@ export default function LeavePage() {
 
   return (
     <div>
-      <PageHeader title="Məzuniyyət" subtitle="Məzuniyyət sorğuları, təsdiq və balans" action={canManage ? <Button onClick={() => setOpen(true)}><Plus /> Yeni sorğu</Button> : undefined} />
+      <PageHeader title="Məzuniyyət" subtitle="Məzuniyyət sorğuları, təsdiq, balans və toplanma" action={canManage ? (
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={openAccrual}><CalendarPlus className="h-4 w-4" /> Toplanma (accrual)</Button>
+          <Button onClick={() => setOpen(true)}><Plus /> Yeni sorğu</Button>
+        </div>
+      ) : undefined} />
 
       <div className="mb-4 grid grid-cols-3 gap-3">
         <Kpi tint="bg-amber-500/10 text-amber-600" value={String(kpis.pending)} label="Gözləyən" />
         <Kpi tint="bg-emerald-500/10 text-emerald-600" value={String(kpis.approved)} label="Təsdiqlənmiş" />
-        <Kpi tint="bg-primary/10 text-primary" value={String(kpis.days)} label="Təsdiqlənmiş gün" />
+        <Kpi tint="bg-primary/10 text-primary" value={`${Math.round(kpis.balance)} gün`} label="Cəmi balans" />
       </div>
 
       <FilterBar
@@ -163,6 +183,25 @@ export default function LeavePage() {
             <div className="space-y-1.5"><Label>Səbəb</Label><Input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Ləğv</Button><Button onClick={submit} disabled={saving}>{saving && <Loader2 className="h-4 w-4 animate-spin" />} Yarat</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Toplanma (accrual) */}
+      <Dialog open={accOpen} onOpenChange={setAccOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Məzuniyyət toplanması</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5"><Label>Dövr (ay)</Label><Input type="month" value={acc.period} onChange={(e) => setAcc({ ...acc, period: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>Metod</Label>
+              <Select value={acc.method} onValueChange={(v) => setAcc({ ...acc, method: v as typeof acc.method })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="monthly">Aylıq (illik ÷ 12)</SelectItem><SelectItem value="daily">Günlük (illik ÷ 365 × gün)</SelectItem><SelectItem value="none">Söndürülüb</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5"><Label>Maksimum balans (cap, boş = limitsiz)</Label><Input type="number" step="any" value={acc.cap} onChange={(e) => setAcc({ ...acc, cap: e.target.value })} placeholder="məs. 60" /></div>
+            <p className="text-xs text-muted-foreground">İdempotentdir — eyni dövr üçün təkrar tətbiq olunmur. Balansa kumulyativ əlavə edilir.</p>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setAccOpen(false)}>Ləğv</Button><Button onClick={runAccrual} disabled={accruing}>{accruing && <Loader2 className="h-4 w-4 animate-spin" />} Tətbiq et</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

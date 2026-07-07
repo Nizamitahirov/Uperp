@@ -9,7 +9,7 @@ import { getDocById, listDocs, createDoc, deleteDocById } from '@/lib/firebase/f
 import { updateEmployee, linkEmployeeUser, terminateEmployee, previewSettlement, type SettlementPreview } from '@/lib/firebase/hr';
 import { uploadFile } from '@/lib/firebase/storage';
 import { useAuth } from '@/components/providers/auth-provider';
-import type { AppUser, Department, Employee, EmployeeDocument, Position } from '@/types';
+import type { AppUser, Department, Employee, EmployeeDocument, LeaveTransaction, Position } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
@@ -47,6 +47,7 @@ export default function EmployeeDetailPage() {
   const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: () => listDocs<Employee>('employees') });
   const { data: users = [] } = useQuery({ queryKey: ['users-simple-hr'], queryFn: () => listDocs<AppUser>('users'), enabled: canManage });
   const { data: docs = [] } = useQuery({ queryKey: ['employee_documents', id], queryFn: () => listDocs<EmployeeDocument>('employee_documents', [where('employeeId', '==', id), orderBy('createdAt', 'desc')]), enabled: !!id });
+  const { data: ledger = [] } = useQuery({ queryKey: ['leave_transactions', id], queryFn: () => listDocs<LeaveTransaction>('leave_transactions', [where('employeeId', '==', id), orderBy('createdAt', 'desc')]), enabled: !!id });
 
   const ms = (t: unknown) => (t as { toMillis?: () => number })?.toMillis?.();
 
@@ -176,6 +177,18 @@ export default function EmployeeDetailPage() {
               {(emp.allowances ?? []).map((a, i) => <div key={i} className="flex justify-between text-xs"><span className="text-muted-foreground">+ {a.name}</span><span className="text-emerald-600">{formatCurrency(a.amount, 'AZN')}</span></div>)}
               {(emp.deductions ?? []).map((a, i) => <div key={i} className="flex justify-between text-xs"><span className="text-muted-foreground">− {a.name}</span><span className="text-rose-600">{formatCurrency(a.amount, 'AZN')}</span></div>)}
               <div className="border-t pt-2"><div className="flex justify-between text-xs"><span className="text-muted-foreground">Bank</span><span>{emp.bankName ?? '—'}</span></div><div className="flex justify-between text-xs"><span className="text-muted-foreground">IBAN</span><span className="font-mono">{emp.iban ?? '—'}</span></div></div>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-card">
+            <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Plane className="h-4 w-4 text-primary" /> Məzuniyyət tarixçəsi</CardTitle></CardHeader>
+            <CardContent className="space-y-1">
+              {ledger.length === 0 ? <p className="py-3 text-center text-sm text-muted-foreground">Hərəkət yoxdur</p> : ledger.slice(0, 10).map((t) => (
+                <div key={t.id} className="flex items-center justify-between border-b border-border/50 py-1.5 text-sm last:border-0">
+                  <span className="text-muted-foreground">{t.type === 'accrual' ? 'Toplanma' : t.type === 'usage' ? 'İstifadə' : t.type === 'reversal' ? 'Geri qaytarma' : t.type === 'opening' ? 'Açılış' : 'Düzəliş'}{t.period ? ` · ${t.period}` : ''}</span>
+                  <span className={t.days >= 0 ? 'font-medium text-emerald-600' : 'font-medium text-rose-600'}>{t.days >= 0 ? '+' : ''}{t.days} gün</span>
+                </div>
+              ))}
             </CardContent>
           </Card>
 

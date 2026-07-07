@@ -1143,3 +1143,26 @@ export interface Settlement {
   createdByName?: string;
   createdAt?: Timestamp | null;
 }
+
+export interface SeniorityTier { years: number; percent: number }
+
+export interface HrConfig {
+  leaveAccrualMethod: 'monthly' | 'daily' | 'none';
+  leaveCarryoverCap: number | null;
+  seniorityTiers: SeniorityTier[];
+}
+
+export interface LeaveTransaction {
+  id: string;
+  employeeId: string;
+  employeeName?: string;
+  type: 'accrual' | 'usage' | 'reversal' | 'adjustment' | 'opening';
+  days: number; // + toplanma / − istifadə
+  balanceAfter?: number;
+  period?: string;
+  refId?: string;
+  note?: string;
+  createdBy?: string;
+  createdByName?: string;
+  createdAt?: Timestamp | null;
+}

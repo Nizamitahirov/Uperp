@@ -1098,6 +1098,8 @@ export interface Payslip {
   overtime: number;
   pieceRatePay: number;
   allowances: number;
+  seniorityAllowance?: number;
+  bonus?: number;
   gross: number;
   incomeTax: number;
   socialEmployee: number;
@@ -1105,6 +1107,7 @@ export interface Payslip {
   medicalEmployee: number;
   otherDeductions: number;
   advances: number;
+  loanDeduction?: number;
   totalDeductions: number;
   net: number;
   employerContrib: number;
@@ -1165,4 +1168,32 @@ export interface LeaveTransaction {
   createdBy?: string;
   createdByName?: string;
   createdAt?: Timestamp | null;
+}
+
+export interface Bonus {
+  id: string;
+  employeeId: string;
+  employeeName?: string;
+  amount: number;
+  reason?: string;
+  period?: string; // YYYY-MM (boşdursa növbəti run)
+  status: 'open' | 'paid';
+  payslipId?: string;
+  createdBy?: string;
+  createdAt?: Timestamp | null;
+}
+
+export interface EmployeeLoan {
+  id: string;
+  employeeId: string;
+  employeeName?: string;
+  userId?: string | null;
+  principal: number;
+  monthlyDeduction: number;
+  remaining: number;
+  status: 'active' | 'closed';
+  note?: string;
+  createdBy?: string;
+  createdAt?: Timestamp | null;
+  updatedAt?: Timestamp | null;
 }

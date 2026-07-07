@@ -5,12 +5,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { orderBy } from 'firebase/firestore';
-import { Banknote, Plus, Loader2, Settings2, Wallet, ArrowUpRight, HandCoins } from 'lucide-react';
+import { Banknote, Plus, Loader2, Settings2, Wallet, ArrowUpRight, HandCoins, Gift, Landmark, Trash2 } from 'lucide-react';
 import { listDocs } from '@/lib/firebase/firestore';
-import { createPayrollRun, createAdvance, fetchPayrollConfig, savePayrollConfig } from '@/lib/firebase/payroll';
+import { createPayrollRun, createAdvance, createBonus, createLoan, fetchPayrollConfig, savePayrollConfig } from '@/lib/firebase/payroll';
+import { fetchHrConfig, saveHrConfig, DEFAULT_HR_CONFIG } from '@/lib/firebase/hr-config';
 import { DEFAULT_PAYROLL_CONFIG, type PayrollConfig } from '@/lib/payroll';
 import { useAuth } from '@/components/providers/auth-provider';
-import type { Employee, PayrollRun } from '@/types';
+import type { Employee, HrConfig, PayrollRun } from '@/types';
 import { formatCurrency } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
 import { EmptyState } from '@/components/shared/empty-state';
@@ -66,8 +67,14 @@ export default function PayrollPage() {
   const [creating, setCreating] = useState(false);
   const [cfgOpen, setCfgOpen] = useState(false);
   const [flat, setFlat] = useState(toFlat(DEFAULT_PAYROLL_CONFIG));
+  const [tiers, setTiers] = useState<HrConfig['seniorityTiers']>(DEFAULT_HR_CONFIG.seniorityTiers);
+  const [hrExtras, setHrExtras] = useState<{ method: HrConfig['leaveAccrualMethod']; cap: number | null }>({ method: 'monthly', cap: null });
   const [advOpen, setAdvOpen] = useState(false);
   const [adv, setAdv] = useState({ employeeId: '', amount: 0, note: '' });
+  const [bonusOpen, setBonusOpen] = useState(false);
+  const [bonus, setBonus] = useState({ employeeId: '', amount: 0, reason: '', period: '' });
+  const [loanOpen, setLoanOpen] = useState(false);
+  const [loan, setLoan] = useState({ employeeId: '', principal: 0, monthlyDeduction: 0, note: '' });
   const [saving, setSaving] = useState(false);
 
   const { data: runs = [], isLoading } = useQuery({ queryKey: ['payroll_runs'], queryFn: () => listDocs<PayrollRun>('payroll_runs', [orderBy('createdAt', 'desc')]) });
@@ -89,10 +96,31 @@ export default function PayrollPage() {
     } catch (e) { toast.error('Alınmadı', e instanceof Error ? e.message : undefined); } finally { setCreating(false); }
   }
 
-  async function openConfig() { const c = await fetchPayrollConfig(); setFlat(toFlat(c)); setCfgOpen(true); }
+  async function openConfig() {
+    const [c, hr] = await Promise.all([fetchPayrollConfig(), fetchHrConfig()]);
+    setFlat(toFlat(c)); setTiers(hr.seniorityTiers); setHrExtras({ method: hr.leaveAccrualMethod, cap: hr.leaveCarryoverCap }); setCfgOpen(true);
+  }
   async function saveConfig() {
     setSaving(true);
-    try { await savePayrollConfig(fromFlat(flat), actor); toast.success('Parametrlər yadda saxlanıldı'); setCfgOpen(false); }
+    try {
+      await savePayrollConfig(fromFlat(flat), actor);
+      await saveHrConfig({ leaveAccrualMethod: hrExtras.method, leaveCarryoverCap: hrExtras.cap, seniorityTiers: tiers.filter((t) => t.years > 0).sort((a, b) => a.years - b.years) }, actor);
+      toast.success('Parametrlər yadda saxlanıldı'); setCfgOpen(false);
+    } catch { toast.error('Alınmadı'); } finally { setSaving(false); }
+  }
+
+  async function saveBonus() {
+    if (!bonus.employeeId || bonus.amount <= 0) { toast.error('İşçi və məbləğ seçin'); return; }
+    const emp = employees.find((e) => e.id === bonus.employeeId);
+    setSaving(true);
+    try { await createBonus({ employeeId: bonus.employeeId, employeeName: emp?.fullName, amount: bonus.amount, reason: bonus.reason || undefined, period: bonus.period || undefined }, actor); toast.success('Bonus qeydə alındı'); setBonusOpen(false); setBonus({ employeeId: '', amount: 0, reason: '', period: '' }); }
+    catch { toast.error('Alınmadı'); } finally { setSaving(false); }
+  }
+  async function saveLoan() {
+    if (!loan.employeeId || loan.principal <= 0 || loan.monthlyDeduction <= 0) { toast.error('Bütün sahələri doldurun'); return; }
+    const emp = employees.find((e) => e.id === loan.employeeId);
+    setSaving(true);
+    try { await createLoan({ employeeId: loan.employeeId, employeeName: emp?.fullName, userId: emp?.userId ?? null, principal: loan.principal, monthlyDeduction: loan.monthlyDeduction, note: loan.note || undefined }, actor); toast.success('Kredit yaradıldı — hər run-da tutulacaq'); setLoanOpen(false); setLoan({ employeeId: '', principal: 0, monthlyDeduction: 0, note: '' }); }
     catch { toast.error('Alınmadı'); } finally { setSaving(false); }
   }
 
@@ -109,7 +137,9 @@ export default function PayrollPage() {
   return (
     <div>
       <PageHeader title="Əmək haqqı" subtitle="Aylıq əmək haqqı hesablanması və payslip-lər" action={
-        canManage ? <div className="flex gap-2">
+        canManage ? <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => setBonusOpen(true)}><Gift className="h-4 w-4" /> Bonus</Button>
+          <Button variant="outline" onClick={() => setLoanOpen(true)}><Landmark className="h-4 w-4" /> Kredit</Button>
           <Button variant="outline" onClick={() => setAdvOpen(true)}><HandCoins className="h-4 w-4" /> Avans</Button>
           <Button variant="outline" onClick={openConfig}><Settings2 className="h-4 w-4" /> Parametrlər</Button>
           <Button onClick={() => setRunOpen(true)}><Plus /> Yeni run</Button>
@@ -181,6 +211,49 @@ export default function PayrollPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Bonus */}
+      <Dialog open={bonusOpen} onOpenChange={setBonusOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Bonus</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5"><Label>İşçi</Label>
+              <Select value={bonus.employeeId} onValueChange={(v) => setBonus({ ...bonus, employeeId: v })}>
+                <SelectTrigger><SelectValue placeholder="Seç" /></SelectTrigger>
+                <SelectContent>{employees.filter((e) => e.status !== 'terminated').map((e) => <SelectItem key={e.id} value={e.id}>{e.fullName}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5"><Label>Məbləğ (₼)</Label><Input type="number" step="any" value={bonus.amount} onChange={(e) => setBonus({ ...bonus, amount: +e.target.value })} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5"><Label>Dövr (boş = növbəti)</Label><Input type="month" value={bonus.period} onChange={(e) => setBonus({ ...bonus, period: e.target.value })} /></div>
+              <div className="space-y-1.5"><Label>Səbəb</Label><Input value={bonus.reason} onChange={(e) => setBonus({ ...bonus, reason: e.target.value })} /></div>
+            </div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setBonusOpen(false)}>Ləğv</Button><Button onClick={saveBonus} disabled={saving}>{saving && <Loader2 className="h-4 w-4 animate-spin" />} Qeyd et</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Kredit */}
+      <Dialog open={loanOpen} onOpenChange={setLoanOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>İşçi krediti</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5"><Label>İşçi</Label>
+              <Select value={loan.employeeId} onValueChange={(v) => setLoan({ ...loan, employeeId: v })}>
+                <SelectTrigger><SelectValue placeholder="Seç" /></SelectTrigger>
+                <SelectContent>{employees.filter((e) => e.status !== 'terminated').map((e) => <SelectItem key={e.id} value={e.id}>{e.fullName}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5"><Label>Məbləğ (₼)</Label><Input type="number" step="any" value={loan.principal} onChange={(e) => setLoan({ ...loan, principal: +e.target.value })} /></div>
+              <div className="space-y-1.5"><Label>Aylıq tutulma (₼)</Label><Input type="number" step="any" value={loan.monthlyDeduction} onChange={(e) => setLoan({ ...loan, monthlyDeduction: +e.target.value })} /></div>
+            </div>
+            <div className="space-y-1.5"><Label>Qeyd</Label><Input value={loan.note} onChange={(e) => setLoan({ ...loan, note: e.target.value })} /></div>
+            <p className="text-xs text-muted-foreground">Hər əmək haqqı run-ında aylıq tutulma net-dən çıxılır, qalıq bitənə qədər.</p>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setLoanOpen(false)}>Ləğv</Button><Button onClick={saveLoan} disabled={saving}>{saving && <Loader2 className="h-4 w-4 animate-spin" />} Yarat</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Parametrlər */}
       <Dialog open={cfgOpen} onOpenChange={setCfgOpen}>
         <DialogContent className="max-w-lg">
@@ -210,6 +283,23 @@ export default function PayrollPage() {
               <Num label="Əlavə iş əmsalı" v={flat.otMult} onChange={(v) => setF('otMult', v)} />
               <Num label="Aylıq norma saat" v={flat.stdHours} onChange={(v) => setF('stdHours', v)} />
             </Group>
+            <div className="rounded-xl border border-border p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Staj əlavəsi (illər → %)</p>
+                <Button variant="ghost" size="sm" onClick={() => setTiers([...tiers, { years: 0, percent: 0 }])}><Plus className="h-3.5 w-3.5" /> Pillə</Button>
+              </div>
+              <div className="space-y-1.5">
+                {tiers.map((t, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <Input type="number" className="h-8" value={t.years} onChange={(e) => setTiers(tiers.map((x, j) => j === i ? { ...x, years: +e.target.value } : x))} placeholder="il" />
+                    <span className="text-xs text-muted-foreground">il →</span>
+                    <Input type="number" step="any" className="h-8" value={t.percent} onChange={(e) => setTiers(tiers.map((x, j) => j === i ? { ...x, percent: +e.target.value } : x))} placeholder="%" />
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-danger" onClick={() => setTiers(tiers.filter((_, j) => j !== i))}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  </div>
+                ))}
+                {tiers.length === 0 && <p className="text-xs text-muted-foreground">Pillə yoxdur — staj əlavəsi tətbiq olunmur.</p>}
+              </div>
+            </div>
             <p className="text-xs text-muted-foreground">Defaultlar 2024–25 özəl (qeyri-neft) sektor üçün təxminidir. Cari qanunvericiliyə uyğun dəqiqləşdirin.</p>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setCfgOpen(false)}>Ləğv</Button><Button onClick={saveConfig} disabled={saving}>{saving && <Loader2 className="h-4 w-4 animate-spin" />} Yadda saxla</Button></DialogFooter>

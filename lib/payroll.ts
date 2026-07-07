@@ -88,6 +88,8 @@ export interface GrossInput {
   overtimeHours: number;
   pieceRatePay: number; // shop-floor-dan yığılmış
   allowances: number;
+  seniority: number; // staj əlavəsi (məbləğ)
+  bonus: number; // birdəfəlik bonus
 }
 
 /** Ödəniş tipinə görə brüt maaşı hesablayır */
@@ -101,26 +103,26 @@ export function computeGross(i: GrossInput, config: PayrollConfig): { base: numb
     case 'piece_rate': base = i.pieceRatePay; break;
   }
   const overtime = i.payType === 'monthly' || i.payType === 'hourly' ? r2(i.overtimeHours * hourly * config.overtimeMultiplier) : 0;
-  const gross = r2(base + overtime + i.allowances + (i.payType === 'piece_rate' ? 0 : 0));
+  const gross = r2(base + overtime + i.allowances + i.seniority + i.bonus);
   return { base: r2(base), overtime, gross };
 }
 
 export interface PayslipCalc {
-  base: number; overtime: number; pieceRatePay: number; allowances: number; gross: number;
+  base: number; overtime: number; pieceRatePay: number; allowances: number; seniorityAllowance: number; bonus: number; gross: number;
   incomeTax: number; socialEmployee: number; unemploymentEmployee: number; medicalEmployee: number;
-  otherDeductions: number; advances: number; totalDeductions: number;
+  otherDeductions: number; advances: number; loanDeduction: number; totalDeductions: number;
   net: number; employerContrib: number; employerCost: number;
 }
 
-export function computePayslip(i: GrossInput & { otherDeductions: number; advances: number }, config: PayrollConfig): PayslipCalc {
+export function computePayslip(i: GrossInput & { otherDeductions: number; advances: number; loanDeduction: number }, config: PayrollConfig): PayslipCalc {
   const { base, overtime, gross } = computeGross(i, config);
   const s = computeStatutory(gross, config);
-  const totalDeductions = r2(s.employeeStatutory + i.otherDeductions + i.advances);
+  const totalDeductions = r2(s.employeeStatutory + i.otherDeductions + i.advances + i.loanDeduction);
   const net = r2(gross - totalDeductions);
   return {
-    base, overtime, pieceRatePay: i.payType === 'piece_rate' ? base : 0, allowances: i.allowances, gross,
+    base, overtime, pieceRatePay: i.payType === 'piece_rate' ? base : 0, allowances: i.allowances, seniorityAllowance: i.seniority, bonus: i.bonus, gross,
     incomeTax: s.incomeTax, socialEmployee: s.socialEmployee, unemploymentEmployee: s.unemploymentEmployee, medicalEmployee: s.medicalEmployee,
-    otherDeductions: i.otherDeductions, advances: i.advances, totalDeductions,
+    otherDeductions: i.otherDeductions, advances: i.advances, loanDeduction: i.loanDeduction, totalDeductions,
     net, employerContrib: s.employerContrib, employerCost: r2(gross + s.employerContrib),
   };
 }

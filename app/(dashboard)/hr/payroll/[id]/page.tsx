@@ -53,6 +53,8 @@ export default function PayrollRunDetailPage() {
         ${rows('Baza', p.base)}
         ${p.overtime ? rows('Əlavə iş', p.overtime) : ''}
         ${p.pieceRatePay ? rows('Ədədi (piece-rate)', p.pieceRatePay) : ''}
+        ${p.seniorityAllowance ? rows('Staj əlavəsi', p.seniorityAllowance) : ''}
+        ${p.bonus ? rows('Bonus', p.bonus) : ''}
         ${p.allowances ? rows('Əlavələr', p.allowances) : ''}
         <tr style="font-weight:700;border-top:1px solid #c9cce0"><td>Brüt (gross)</td><td class="right">${c(p.gross)}</td></tr>
         ${rows('Gəlir vergisi', p.incomeTax, true)}
@@ -61,6 +63,7 @@ export default function PayrollRunDetailPage() {
         ${rows('Tibbi sığorta', p.medicalEmployee, true)}
         ${p.otherDeductions ? rows('Digər tutulmalar', p.otherDeductions, true) : ''}
         ${p.advances ? rows('Avans', p.advances, true) : ''}
+        ${p.loanDeduction ? rows('Kredit tutulması', p.loanDeduction, true) : ''}
         <tr style="font-weight:800;border-top:2px solid #5B5BF5;font-size:14px"><td>NET (əlinizə)</td><td class="right">${c(p.net)}</td></tr>
       </tbody></table>
       <p class="muted" style="margin-top:14px">İş günü: ${p.presentDays} · Saat: ${p.totalHours} · Əlavə iş: ${p.overtimeHours}s · Bank: ${p.bankName ?? '—'} · IBAN: ${p.iban ?? '—'}</p>

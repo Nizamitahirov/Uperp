@@ -6,7 +6,8 @@ import { createExpense } from './finance';
 import { listDocs } from './firestore';
 import { computePayslip, DEFAULT_PAYROLL_CONFIG, type PayrollConfig } from '@/lib/payroll';
 import { buildTimesheet } from './attendance';
-import type { Attendance, Employee, PayrollRun, PayrollRunStatus, Payslip, ProductionOperations, SalaryAdvance } from '@/types';
+import { fetchHrConfig, yearsOfService, seniorityPercent } from './hr-config';
+import type { Attendance, Bonus, Employee, EmployeeLoan, PayrollRun, PayrollRunStatus, Payslip, ProductionOperations, SalaryAdvance } from '@/types';
 
 interface Actor { uid: string; username: string }
 
@@ -50,11 +51,14 @@ export async function aggregatePieceRate(employees: Employee[], period: string):
 /** Dövr üçün əmək haqqı run-ı yaradır: hesablayır, payslip-ləri yazır, avansları tutur */
 export async function createPayrollRun(period: string, actor: Actor): Promise<string> {
   const db = getDb();
-  const [employees, attendance, advances, config] = await Promise.all([
+  const [employees, attendance, advances, bonuses, loans, config, hrConfig] = await Promise.all([
     listDocs<Employee>('employees'),
     listDocs<Attendance>('attendance', []),
     listDocs<SalaryAdvance>('salary_advances', []),
+    listDocs<Bonus>('bonuses', []),
+    listDocs<EmployeeLoan>('employee_loans', []),
     fetchPayrollConfig(),
+    fetchHrConfig(),
   ]);
   const active = employees.filter((e) => e.status === 'active' || e.status === 'probation' || e.status === 'on_leave');
   const monthAtt = attendance.filter((a) => a.dateKey?.startsWith(period));
@@ -63,6 +67,14 @@ export async function createPayrollRun(period: string, actor: Actor): Promise<st
   const openAdvByEmp = new Map<string, SalaryAdvance[]>();
   for (const a of advances.filter((x) => x.status === 'open')) {
     const arr = openAdvByEmp.get(a.employeeId) ?? []; arr.push(a); openAdvByEmp.set(a.employeeId, arr);
+  }
+  const openBonusByEmp = new Map<string, Bonus[]>();
+  for (const b of bonuses.filter((x) => x.status === 'open' && (!x.period || x.period === period))) {
+    const arr = openBonusByEmp.get(b.employeeId) ?? []; arr.push(b); openBonusByEmp.set(b.employeeId, arr);
+  }
+  const activeLoanByEmp = new Map<string, EmployeeLoan[]>();
+  for (const l of loans.filter((x) => x.status === 'active' && (x.remaining ?? 0) > 0)) {
+    const arr = activeLoanByEmp.get(l.employeeId) ?? []; arr.push(l); activeLoanByEmp.set(l.employeeId, arr);
   }
   const pieceRate = await aggregatePieceRate(active, period);
 
@@ -78,25 +90,43 @@ export async function createPayrollRun(period: string, actor: Actor): Promise<st
     const otherDeductions = r2((e.deductions ?? []).reduce((a, x) => a + (x.amount || 0), 0));
     const empAdvances = openAdvByEmp.get(e.id) ?? [];
     const advanceSum = r2(empAdvances.reduce((a, x) => a + (x.amount || 0), 0));
+    const empBonuses = openBonusByEmp.get(e.id) ?? [];
+    const bonusSum = r2(empBonuses.reduce((a, x) => a + (x.amount || 0), 0));
+    const seniority = r2((e.baseSalary ?? 0) * seniorityPercent(yearsOfService(e.hireDate), hrConfig.seniorityTiers) / 100);
+    // Kredit tutulması
+    const empLoans = activeLoanByEmp.get(e.id) ?? [];
+    let loanDeduction = 0;
+    const loanUpdates: { id: string; remaining: number; status: 'active' | 'closed' }[] = [];
+    for (const l of empLoans) {
+      const ded = Math.min(l.remaining ?? 0, l.monthlyDeduction ?? 0);
+      if (ded <= 0) continue;
+      loanDeduction = r2(loanDeduction + ded);
+      const rem = r2((l.remaining ?? 0) - ded);
+      loanUpdates.push({ id: l.id, remaining: rem, status: rem <= 0.005 ? 'closed' : 'active' });
+    }
 
     const calc = computePayslip({
       payType: e.payType, baseSalary: e.baseSalary ?? 0,
       presentDays: ts?.presentDays ?? 0, halfDays: ts?.halfDays ?? 0, totalHours: ts?.totalHours ?? 0, overtimeHours: ts?.overtimeHours ?? 0,
-      pieceRatePay: pieceRate.get(e.id) ?? 0, allowances, otherDeductions, advances: advanceSum,
+      pieceRatePay: pieceRate.get(e.id) ?? 0, allowances, seniority, bonus: bonusSum, otherDeductions, advances: advanceSum, loanDeduction,
     }, config);
 
     const psRef = doc(collection(db, 'payslips'));
     batch.set(psRef, {
       runId: runRef.id, period, employeeId: e.id, employeeName: e.fullName, userId: e.userId ?? null,
       payType: e.payType, presentDays: ts?.presentDays ?? 0, totalHours: ts?.totalHours ?? 0, overtimeHours: ts?.overtimeHours ?? 0,
-      base: calc.base, overtime: calc.overtime, pieceRatePay: calc.pieceRatePay, allowances: calc.allowances, gross: calc.gross,
+      base: calc.base, overtime: calc.overtime, pieceRatePay: calc.pieceRatePay, allowances: calc.allowances, seniorityAllowance: calc.seniorityAllowance, bonus: calc.bonus, gross: calc.gross,
       incomeTax: calc.incomeTax, socialEmployee: calc.socialEmployee, unemploymentEmployee: calc.unemploymentEmployee, medicalEmployee: calc.medicalEmployee,
-      otherDeductions: calc.otherDeductions, advances: calc.advances, totalDeductions: calc.totalDeductions,
+      otherDeductions: calc.otherDeductions, advances: calc.advances, loanDeduction: calc.loanDeduction, totalDeductions: calc.totalDeductions,
       net: calc.net, employerContrib: calc.employerContrib, employerCost: calc.employerCost,
       bankName: e.bankName ?? null, iban: e.iban ?? null, createdAt: serverTimestamp(),
     });
     // Avansları tutulmuş kimi işarələ
     for (const adv of empAdvances) batch.update(doc(db, 'salary_advances', adv.id), { status: 'deducted', payslipId: psRef.id });
+    // Bonusları ödənilmiş işarələ
+    for (const b of empBonuses) batch.update(doc(db, 'bonuses', b.id), { status: 'paid', payslipId: psRef.id });
+    // Kredit qalıqlarını yenilə
+    for (const u of loanUpdates) batch.update(doc(db, 'employee_loans', u.id), { remaining: u.remaining, status: u.status, updatedAt: serverTimestamp() });
 
     totalGross += calc.gross; totalNet += calc.net; totalTax += calc.incomeTax;
     totalStatutory += calc.totalDeductions; totalEmployerCost += calc.employerCost; count += 1;
@@ -137,5 +167,26 @@ export async function createAdvance(data: { employeeId: string; employeeName?: s
     date: serverTimestamp(), status: 'open', note: data.note ?? null, createdAt: serverTimestamp(),
   });
   await logAudit({ userId: actor.uid, username: actor.username, action: 'CREATE', entityType: 'SalaryAdvance', entityId: ref.id });
+  return ref.id;
+}
+
+/** Birdəfəlik bonus (növbəti və ya seçilmiş dövr run-ında ödənilir) */
+export async function createBonus(data: { employeeId: string; employeeName?: string; amount: number; reason?: string; period?: string }, actor: Actor): Promise<string> {
+  const ref = await addDoc(collection(getDb(), 'bonuses'), {
+    employeeId: data.employeeId, employeeName: data.employeeName ?? null, amount: data.amount,
+    reason: data.reason ?? null, period: data.period ?? null, status: 'open', createdBy: actor.uid, createdAt: serverTimestamp(),
+  });
+  await logAudit({ userId: actor.uid, username: actor.username, action: 'CREATE', entityType: 'Bonus', entityId: ref.id });
+  return ref.id;
+}
+
+/** İşçi krediti (hər run-da hissəli tutulur) */
+export async function createLoan(data: { employeeId: string; employeeName?: string; userId?: string | null; principal: number; monthlyDeduction: number; note?: string }, actor: Actor): Promise<string> {
+  const ref = await addDoc(collection(getDb(), 'employee_loans'), {
+    employeeId: data.employeeId, employeeName: data.employeeName ?? null, userId: data.userId ?? null,
+    principal: data.principal, monthlyDeduction: data.monthlyDeduction, remaining: data.principal, status: 'active',
+    note: data.note ?? null, createdBy: actor.uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+  await logAudit({ userId: actor.uid, username: actor.username, action: 'CREATE', entityType: 'EmployeeLoan', entityId: ref.id });
   return ref.id;
 }

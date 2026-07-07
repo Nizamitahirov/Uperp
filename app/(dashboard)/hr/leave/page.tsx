@@ -3,12 +3,13 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { orderBy } from 'firebase/firestore';
-import { Plane, Check, X, Plus, Loader2, CalendarPlus } from 'lucide-react';
+import { Plane, Check, X, Plus, Loader2, CalendarPlus, CalendarDays, Trash2 } from 'lucide-react';
 import { listDocs } from '@/lib/firebase/firestore';
 import { createLeaveRequest, setLeaveStatus, accrueLeaveForPeriod, LEAVE_TYPES } from '@/lib/firebase/leave';
 import { fetchHrConfig, saveHrConfig } from '@/lib/firebase/hr-config';
+import { fetchHolidays, saveHoliday, deleteHoliday, HOLIDAY_TYPE_LABELS } from '@/lib/firebase/holidays';
 import { useAuth } from '@/components/providers/auth-provider';
-import type { Employee, LeaveRequest, LeaveStatus } from '@/types';
+import type { Employee, Holiday, LeaveRequest, LeaveStatus } from '@/types';
 import { formatDate } from '@/lib/utils/format';
 import { PageHeader } from '@/components/shared/page-header';
 import { ExportButton } from '@/components/shared/export-button';
@@ -44,11 +45,15 @@ export default function LeavePage() {
   const [form, setForm] = useState({ employeeId: '', type: 'annual', startDate: '', endDate: '', reason: '' });
   const [saving, setSaving] = useState(false);
   const [accOpen, setAccOpen] = useState(false);
-  const [acc, setAcc] = useState({ period: new Date().toISOString().slice(0, 7), method: 'monthly' as 'monthly' | 'daily' | 'none', cap: '' });
+  const [acc, setAcc] = useState({ period: new Date().toISOString().slice(0, 7), method: 'monthly' as 'monthly' | 'daily' | 'none', cap: '', countMode: 'calendar' as 'calendar' | 'working' });
   const [accruing, setAccruing] = useState(false);
+  const [holOpen, setHolOpen] = useState(false);
+  const [hol, setHol] = useState({ date: '', name: '', type: 'public' as Holiday['type'], recurring: false });
+  const [holSaving, setHolSaving] = useState(false);
 
   const { data: requests = [], isLoading } = useQuery({ queryKey: ['leave_requests'], queryFn: () => listDocs<LeaveRequest>('leave_requests', [orderBy('createdAt', 'desc')]) });
   const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: () => listDocs<Employee>('employees') });
+  const { data: holidays = [] } = useQuery({ queryKey: ['holidays'], queryFn: fetchHolidays });
   const ms = (t: unknown) => (t as { toMillis?: () => number })?.toMillis?.();
 
   const filtered = useMemo(() => {
@@ -67,15 +72,30 @@ export default function LeavePage() {
     balance: employees.filter((e) => e.status !== 'terminated').reduce((a, e) => a + (e.leaveBalance ?? e.annualLeaveEntitlement ?? 0), 0),
   }), [requests, employees]);
 
-  async function openAccrual() { const c = await fetchHrConfig(); setAcc({ period: new Date().toISOString().slice(0, 7), method: c.leaveAccrualMethod, cap: c.leaveCarryoverCap != null ? String(c.leaveCarryoverCap) : '' }); setAccOpen(true); }
+  async function openAccrual() { const c = await fetchHrConfig(); setAcc({ period: new Date().toISOString().slice(0, 7), method: c.leaveAccrualMethod, cap: c.leaveCarryoverCap != null ? String(c.leaveCarryoverCap) : '', countMode: c.leaveCountMode ?? 'calendar' }); setAccOpen(true); }
   async function runAccrual() {
     setAccruing(true);
     try {
-      await saveHrConfig({ leaveAccrualMethod: acc.method, leaveCarryoverCap: acc.cap === '' ? null : +acc.cap, seniorityTiers: (await fetchHrConfig()).seniorityTiers }, actor);
+      const cur = await fetchHrConfig();
+      await saveHrConfig({ ...cur, leaveAccrualMethod: acc.method, leaveCarryoverCap: acc.cap === '' ? null : +acc.cap, leaveCountMode: acc.countMode }, actor);
       const res = await accrueLeaveForPeriod(acc.period, actor);
       toast.success(`Toplanma tətbiq edildi: ${res.employees} işçi, +${res.totalDays} gün`, res.skipped ? `${res.skipped} artıq mövcud/keçildi` : undefined);
       setAccOpen(false); qc.invalidateQueries({ queryKey: ['employees'] });
     } catch (e) { toast.error('Alınmadı', e instanceof Error ? e.message : undefined); } finally { setAccruing(false); }
+  }
+
+  async function addHoliday() {
+    if (!hol.date || !hol.name.trim()) { toast.error('Tarix və ad tələb olunur'); return; }
+    setHolSaving(true);
+    try {
+      await saveHoliday(hol, actor);
+      toast.success('Bayram əlavə edildi'); setHol({ date: '', name: '', type: 'public', recurring: false });
+      qc.invalidateQueries({ queryKey: ['holidays'] });
+    } catch (e) { toast.error('Alınmadı', e instanceof Error ? e.message : undefined); } finally { setHolSaving(false); }
+  }
+  async function removeHoliday(id: string) {
+    try { await deleteHoliday(id, actor); qc.invalidateQueries({ queryKey: ['holidays'] }); }
+    catch (e) { toast.error('Alınmadı', e instanceof Error ? e.message : undefined); }
   }
 
   async function decide(r: LeaveRequest, s: LeaveStatus) {
@@ -99,6 +119,7 @@ export default function LeavePage() {
     <div>
       <PageHeader title="Məzuniyyət" subtitle="Məzuniyyət sorğuları, təsdiq, balans və toplanma" action={canManage ? (
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setHolOpen(true)}><CalendarDays className="h-4 w-4" /> Bayram təqvimi</Button>
           <Button variant="outline" onClick={openAccrual}><CalendarPlus className="h-4 w-4" /> Toplanma (accrual)</Button>
           <Button onClick={() => setOpen(true)}><Plus /> Yeni sorğu</Button>
         </div>
@@ -199,9 +220,55 @@ export default function LeavePage() {
               </Select>
             </div>
             <div className="space-y-1.5"><Label>Maksimum balans (cap, boş = limitsiz)</Label><Input type="number" step="any" value={acc.cap} onChange={(e) => setAcc({ ...acc, cap: e.target.value })} placeholder="məs. 60" /></div>
+            <div className="space-y-1.5"><Label>Gün sayma rejimi</Label>
+              <Select value={acc.countMode} onValueChange={(v) => setAcc({ ...acc, countMode: v as typeof acc.countMode })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="calendar">Təqvim günü (bütün günlər)</SelectItem><SelectItem value="working">İş günü (həftəsonu + bayram xaric)</SelectItem></SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">İş günü rejimində illik məzuniyyət sorğuları həftəsonu və bayramları saymır.</p>
+            </div>
             <p className="text-xs text-muted-foreground">İdempotentdir — eyni dövr üçün təkrar tətbiq olunmur. Balansa kumulyativ əlavə edilir.</p>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setAccOpen(false)}>Ləğv</Button><Button onClick={runAccrual} disabled={accruing}>{accruing && <Loader2 className="h-4 w-4 animate-spin" />} Tətbiq et</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bayram təqvimi */}
+      <Dialog open={holOpen} onOpenChange={setHolOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Bayram təqvimi</DialogTitle></DialogHeader>
+          {canManage && (
+            <div className="grid grid-cols-[auto_1fr_auto] items-end gap-2 rounded-xl border border-border bg-muted/30 p-3">
+              <div className="space-y-1"><Label className="text-xs">Tarix</Label><Input type="date" value={hol.date} onChange={(e) => setHol({ ...hol, date: e.target.value })} className="w-40" /></div>
+              <div className="space-y-1"><Label className="text-xs">Ad</Label><Input value={hol.name} onChange={(e) => setHol({ ...hol, name: e.target.value })} placeholder="məs. Novruz" /></div>
+              <Button onClick={addHoliday} disabled={holSaving}>{holSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Əlavə et</Button>
+              <div className="col-span-3 flex items-center gap-3">
+                <Select value={hol.type} onValueChange={(v) => setHol({ ...hol, type: v as Holiday['type'] })}>
+                  <SelectTrigger className="h-8 w-44"><SelectValue /></SelectTrigger>
+                  <SelectContent>{Object.entries(HOLIDAY_TYPE_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
+                </Select>
+                <label className="flex items-center gap-1.5 text-xs text-muted-foreground"><input type="checkbox" checked={hol.recurring} onChange={(e) => setHol({ ...hol, recurring: e.target.checked })} /> Hər il təkrarlanır</label>
+              </div>
+            </div>
+          )}
+          <div className="max-h-72 overflow-y-auto">
+            {holidays.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">Bayram əlavə edilməyib.</p> : (
+              <Table>
+                <TableHeader><TableRow><TableHead>Tarix</TableHead><TableHead>Ad</TableHead><TableHead>Növ</TableHead>{canManage && <TableHead />}</TableRow></TableHeader>
+                <TableBody>
+                  {holidays.map((h) => (
+                    <TableRow key={h.id}>
+                      <TableCell className="font-mono text-xs">{h.recurring ? `hər il ${h.date.slice(5)}` : h.date}</TableCell>
+                      <TableCell className="font-medium">{h.name}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{HOLIDAY_TYPE_LABELS[h.type]}</TableCell>
+                      {canManage && <TableCell className="text-right"><Button variant="ghost" size="icon" className="h-8 w-8 text-danger" onClick={() => removeHoliday(h.id)}><Trash2 className="h-4 w-4" /></Button></TableCell>}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setHolOpen(false)}>Bağla</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

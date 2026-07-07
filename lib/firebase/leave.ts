@@ -4,6 +4,7 @@ import { nextNumber } from './counters';
 import { logAudit } from './audit';
 import { createNotification } from './notifications';
 import { fetchHrConfig } from './hr-config';
+import { fetchHolidays, buildHolidaySet, workingDaysBetween } from './holidays';
 import { listDocs } from './firestore';
 import type { Employee, LeaveRequest, LeaveStatus, LeaveTransaction } from '@/types';
 
@@ -39,7 +40,14 @@ export async function createLeaveRequest(
   actor: Actor,
 ): Promise<string> {
   const t = LEAVE_TYPE_MAP.get(data.type);
-  const days = leaveDays(data.startDate, data.endDate);
+  // İş günü rejimi + balansa təsir edən növ üçün həftəsonu/bayramları xaric say
+  const config = await fetchHrConfig();
+  let days = leaveDays(data.startDate, data.endDate);
+  if (config.leaveCountMode === 'working' && (t?.affectsBalance ?? false)) {
+    const sets = buildHolidaySet(await fetchHolidays());
+    const wd = workingDaysBetween(data.startDate, data.endDate, sets, config.weekendDays ?? [0, 6]);
+    if (wd > 0) days = wd;
+  }
   if (days <= 0) throw new Error('Tarix aralığı yanlışdır');
   const requestNumber = await nextNumber('LV');
   const ref = await addDoc(collection(getDb(), 'leave_requests'), {

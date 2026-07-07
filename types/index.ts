@@ -1153,6 +1153,8 @@ export interface HrConfig {
   leaveAccrualMethod: 'monthly' | 'daily' | 'none';
   leaveCarryoverCap: number | null;
   seniorityTiers: SeniorityTier[];
+  leaveCountMode?: 'calendar' | 'working'; // məzuniyyət günləri: təqvim və ya iş günü (həftəsonu+bayram xaric)
+  weekendDays?: number[]; // 0=B, 6=Ş (default [0,6])
 }
 
 export interface LeaveTransaction {
@@ -1196,4 +1198,98 @@ export interface EmployeeLoan {
   createdBy?: string;
   createdAt?: Timestamp | null;
   updatedAt?: Timestamp | null;
+}
+
+// ── Faza I: Bayram təqvimi ─────────────────────────────────────────────
+export interface Holiday {
+  id: string; // YYYY-MM-DD
+  date: string; // YYYY-MM-DD
+  name: string;
+  type: 'public' | 'company' | 'religious';
+  recurring?: boolean; // hər il təkrarlanır (ay-gün üzrə)
+  createdAt?: Timestamp | null;
+  createdBy?: string;
+}
+
+// ── Faza J: İşə qəbul (ATS-lite) ───────────────────────────────────────
+export interface JobOpening {
+  id: string;
+  number?: string;
+  title: string;
+  departmentId?: string;
+  departmentName?: string;
+  positionId?: string;
+  headcount: number;
+  status: 'open' | 'on_hold' | 'closed';
+  description?: string;
+  createdAt?: Timestamp | null;
+  createdBy?: string;
+  closedAt?: Timestamp | null;
+}
+
+export type CandidateStage = 'applied' | 'screening' | 'interview' | 'offer' | 'hired' | 'rejected';
+
+export interface Candidate {
+  id: string;
+  openingId: string;
+  openingTitle?: string;
+  fullName: string;
+  email?: string;
+  phone?: string;
+  stage: CandidateStage;
+  expectedSalary?: number;
+  notes?: string;
+  rejectionReason?: string;
+  hiredEmployeeId?: string;
+  createdAt?: Timestamp | null;
+  updatedAt?: Timestamp | null;
+  createdBy?: string;
+}
+
+// ── Faza K: ESS sorğular / maaş tarixçəsi / intizam ────────────────────
+export type HrRequestType = 'certificate' | 'data_change' | 'other';
+
+export interface HrRequest {
+  id: string;
+  number?: string;
+  employeeId: string;
+  employeeName?: string;
+  userId?: string | null;
+  type: HrRequestType;
+  subject: string;
+  details?: string;
+  status: 'pending' | 'in_progress' | 'done' | 'rejected';
+  response?: string;
+  handledBy?: string;
+  handledByName?: string;
+  handledAt?: Timestamp | null;
+  createdAt?: Timestamp | null;
+}
+
+export interface SalaryHistory {
+  id: string;
+  employeeId: string;
+  employeeName?: string;
+  effectiveDate: string; // YYYY-MM-DD
+  previousSalary: number;
+  newSalary: number;
+  previousPayType?: string;
+  newPayType?: string;
+  reason?: string;
+  createdAt?: Timestamp | null;
+  createdBy?: string;
+  createdByName?: string;
+}
+
+export interface DisciplinaryRecord {
+  id: string;
+  employeeId: string;
+  employeeName?: string;
+  date: string; // YYYY-MM-DD
+  category: 'warning' | 'reprimand' | 'suspension' | 'note';
+  subject: string;
+  details?: string;
+  createdAt?: Timestamp | null;
+  createdBy?: string;
+  createdByName?: string;
 }

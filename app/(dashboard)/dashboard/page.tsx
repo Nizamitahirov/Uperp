@@ -12,6 +12,7 @@ import {
   Wallet, Package, Factory, ShoppingCart, AlertTriangle, Sparkles, Loader2,
   Plus, ArrowRight, ArrowUpRight, Droplets, Boxes, Target, Settings as SettingsIcon,
 } from 'lucide-react';
+import { where } from 'firebase/firestore';
 import { listDocs, getDocById } from '@/lib/firebase/firestore';
 import { aiPrompt } from '@/lib/ai/client';
 import { ChartCard } from '@/components/charts/chart-card';
@@ -20,7 +21,7 @@ import { useAuth } from '@/components/providers/auth-provider';
 import { getRoleName } from '@/lib/rbac/permissions';
 import type {
   SalesOrder, Receivable, Payable, RawMaterial, FinishedGoodStock, ProductionOrder,
-  Delivery, PurchaseOrder, Customer, WashingOrder, Product,
+  Delivery, PurchaseOrder, Customer, WashingOrder, Product, Employee,
 } from '@/types';
 import { getStockStatus } from '@/lib/utils/stock';
 import { buildAging } from '@/lib/utils/aging';
@@ -43,6 +44,13 @@ export default function DashboardPage() {
   const role = profile?.role ?? 'director';
   const [insight, setInsight] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
+
+  // İstifadəçi əməkdaş kartına bağlıdırsa, salamlamada onun adını göstər
+  const { data: linkedEmployee } = useQuery({
+    queryKey: ['dashboard-linked-employee', profile?.uid],
+    queryFn: () => listDocs<Employee>('employees', [where('userId', '==', profile!.uid)]),
+    enabled: !!profile?.uid,
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-data'],
@@ -220,7 +228,8 @@ export default function DashboardPage() {
 
   const now = new Date();
   const greet = now.getHours() < 12 ? 'Sabahınız xeyir' : now.getHours() < 18 ? 'Günortanız xeyir' : 'Axşamınız xeyir';
-  const firstName = (profile?.fullName || profile?.username || 'İstifadəçi').split(' ')[0];
+  const displayName = linkedEmployee?.[0]?.fullName || profile?.fullName || profile?.username || 'İstifadəçi';
+  const firstName = displayName.split(' ')[0];
   const todayStr = now.toLocaleDateString('az-AZ', { weekday: 'long', day: 'numeric', month: 'long' });
 
   const heroCta = HERO_CTA[role] ?? { href: '/dashboard', label: 'Panelə bax' };
